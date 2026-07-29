@@ -1,0 +1,10 @@
+**.html
+**.vo
+**.vos
+**.vok
+**.glob
+**.cache
+**.aux
+**~
+**#
+**Makefile.coq*
