@@ -15,7 +15,7 @@ Section __.
       end.
 
     Definition path_to first p last :=
-      path first p /\ last = nth_default first p.
+      path first p /\ last = List.last p first.
   End path.
 
   Context {eqbV : V -> V -> bool}.
