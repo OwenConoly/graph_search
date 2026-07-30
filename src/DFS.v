@@ -1,5 +1,5 @@
 From Stdlib Require Import List.
-From coqutil Require Import Map.Interface Datatypes.List Datatypes.ListSet.
+From coqutil Require Import Map.Interface Datatypes.List Datatypes.ListSet Eqb.
 Import ListNotations.
 
 Section __.
@@ -18,7 +18,7 @@ Section __.
       path first p /\ last = List.last p first.
   End path.
 
-  Context {eqbV : V -> V -> bool}.
+  Context {eqbV : Eqb V}.
   Context {graph : map.map V (list V)}.
 
   Section fold.
@@ -27,7 +27,7 @@ Section __.
     Context (foreedge_upd : state -> list V -> V -> state).
 
     Definition set_contains vs v :=
-      List.existsb (eqbV v) vs.
+      List.existsb (eqb v) vs.
 
     Context (g : graph).
 
@@ -38,7 +38,7 @@ Section __.
       end.
 
     Definition state' : Type := list V * state.
-    Definition backedge_upd' '(vs, st) v := (v :: vs, backedge_upd st vs v).
+    Definition backedge_upd' '(vs, st) v := (vs, backedge_upd st vs v).
     Definition foreedge_upd' '(vs, st) v := (v :: vs, foreedge_upd st vs v).
 
     Definition already_seen (st' : state') v :=
@@ -51,8 +51,9 @@ Section __.
         | O => st'
         end.
 
-    Definition dfs_fold := dfs_fold' (length (map.keys g)).
+    Definition dfs_fold := dfs_fold' (S (length (map.keys g))).
   End fold.
 
   Definition check_tree :=
-    dfs_fold (fun _ _ _ => false) (fun tree _ _ => true).
+    dfs_fold (fun _ _ _ => false) (fun tree _ _ => tree).
+End __.
