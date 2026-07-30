@@ -27,6 +27,13 @@ Section map.
       end) m1 m2.
 End map.
 
+Section list.
+  Context {A : Type}.
+
+  Definition disjoint_lists (l1 l2 : list A) :=
+    forall x, In x l1 -> In x l2 -> False.
+End list.
+
 Section __.
   Context {V : Type}.
 
@@ -51,18 +58,27 @@ Section __.
       List.existsb (eqb v) vs.
 
     Inductive dfs_tree :=
-    | node (name : V) (back_edges : list V) (fore_edges : list dfs_tree).
+    | node (name : V) (untree_edges : list V) (tree_edges : list dfs_tree).
 
-    Fixpoint valid_dfs_tree' (ctx : list V) (t : dfs_tree) :=
+    Definition name_of (t : dfs_tree) :=
       match t with
-      | node u back_edges fore_edges =>
-          ~In u ctx /\
-            NoDup back_edges /\
-            Forall (fun v => In v ctx) back_edges /\
-            Forall (fun P => P) (map (valid_dfs_tree' (u :: ctx)) fore_edges)
+      | node name _ _ => name
       end.
 
-    Definition valid_dfs_tree := valid_dfs_tree' [].
+    Fixpoint edges_of (t : dfs_tree) :=
+      match t with
+      | node u untree_edges tree_edges =>
+          map (pair u) (untree_edges ++ map name_of tree_edges)
+            ++ flat_map edges_of tree_edges
+      end.
+
+    Fixpoint nodes_of t :=
+      match t with
+      | node u _ tree_edges => u :: flat_map nodes_of tree_edges
+      end.
+
+    Definition valid_dfs_tree t :=
+      NoDup (nodes_of t) /\ NoDup (edges_of t).
 
     Section with_graph.
       Context (g : graph).
@@ -71,43 +87,31 @@ Section __.
       Definition has_edge u v := set_contains (edges u) v.
       Definition put_edge u v := mupd_total [] (list_union eqb [v]) g u.
 
-      Fixpoint dfs_tree_of' n vs v :=
-        if set_contains vs v then vs else
-          match n with
-          | S n' => fold_left (dfs_tree_of' n') (edges v) (v :: vs)
-          | O => vs
-          end.
+      Fixpoint dfs_tree_of' n (vs : list V) u : list V * dfs_tree :=
+        match n with
+        | S n' =>
+            let '(vs', untree_edges, tree_edges) :=
+              fold_left (fun '(vs', untree_edges, tree_edges) v =>
+                           if set_contains vs' v then
+                             (vs', v :: untree_edges, tree_edges)
+                           else
+                             let '(vs'', tree_edge) := dfs_tree_of' n' vs' v in
+                             (vs'', untree_edges, tree_edge :: tree_edges))
+                (edges u) (u :: vs, [], []) in
+            (vs', node u untree_edges tree_edges)
+        | O => (vs, node u [] [])
+        end.
 
-      Definition dfs_tree_of := dfs_tree_of' (S (length (map.keys g))) [].
+      Definition dfs_tree_of u :=
+        snd (dfs_tree_of' (S (length (map.keys g))) [] u).
     End with_graph.
 
-    Fixpoint graph_of' (parent : option V) (t : dfs_tree) :=
-      match t with
-      | node u back_edges fore_edges =>
-          let g := fold_left (union_with (list_union eqb)) (map (graph_of' (Some u)) fore_edges) map.empty in
-          let g' := fold_left (fun g v => put_edge g u v) back_edges g in
-          match parent with
-          | Some p => put_edge g' p u
-          | None => g'
-          end
-      end.
-
-    Definition graph_of := graph_of' None.
+    Definition put_edges :=
+      fold_left (fun g '(u, v) => put_edge g u v).
 
     (*true for connected graphs*)
     Lemma dfs_tree_of_spec g v :
-      graph_of (fs_tree_of g v) = g.
-
-  End with_graph.
-
-    (* Lemma dfs_fold_spec X (P : graph -> T -> Prop) x0 : *)
-    (*   P map.empty x0 -> *)
-    (*   (forall u v g x, *)
-    (*       has_edge g u v = false -> *)
-    (*       P g x -> *)
-    (*       P (put_edge g u v) ( *)
-    (*not sure how to make this unugly*)
-
+      put_edges (edges_of (dfs_tree_of g v)) map.empty = g.
+    Proof. Abort.
   End fold.
-
 End __.
