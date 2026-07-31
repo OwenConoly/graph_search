@@ -23,6 +23,7 @@ Section __.
   Context {V : Type}.
 
   Section path.
+    Context (node : V -> Prop).
     Context (edge : V -> V -> Prop).
 
     Fixpoint path (first : V) (p : list V) :=
@@ -33,6 +34,16 @@ Section __.
 
     Definition path_to first p last :=
       path first p /\ last = List.last p first.
+
+    Definition locally_tree root :=
+      forall n p1 p2,
+        path_to root p1 n ->
+        path_to root p2 n ->
+        p1 = p2.
+
+    Definition reachable root :=
+      forall u v, edge u v ->
+             exists p, path_to root p u.
   End path.
 
   Context {eqbV : Eqb V}.
@@ -49,9 +60,14 @@ Section __.
     Section with_graph.
       Context (g : graph).
 
+      Definition nodes :=
+        map.fold (fun ns u v => list_union eqb (u :: v) ns) [] g.
       Definition edges u := get_or [] g u.
       Definition has_edge u v := set_contains (edges u) v.
       Definition put_edge u v := mupd_total [] (list_union eqb [v]) g u.
+
+      Definition graph_node u := In u nodes.
+      Definition graph_edge u v := In v (edges u).
 
       Definition state' : Type := list V * state.
       Definition backedge_upd' '(vs, st) v := (vs, backedge_upd st vs v).
@@ -70,12 +86,17 @@ Section __.
       Definition dfs_fold := dfs_fold' (S (length (map.keys g))).
     End with_graph.
 
-    (* Lemma dfs_fold_spec X (P : graph -> T -> Prop) x0 : *)
-    (*   P map.empty x0 -> *)
-    (*   (forall u v g x, *)
-    (*       has_edge g u v = false -> *)
-    (*       P g x -> *)
-    (*       P (put_edge g u v) ( *)
+    (*adding an edge from a different forest should not change anything*)
+    Lemma dfs_fold_spec X (P : graph -> T -> Prop) x0 :
+      P map.empty x0 ->
+      (forall u v g x,
+          has_edge g u v = false ->
+          P g x ->
+          P (put_edge g u v) ) ->
+      forall g,
+        reachable root g ->
+        P g.
+
     (*not sure how to make this unugly*)
 
   End fold.
