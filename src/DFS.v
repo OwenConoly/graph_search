@@ -23,7 +23,6 @@ Section __.
   Context {V : Type}.
 
   Section path.
-    Context (node : V -> Prop).
     Context (edge : V -> V -> Prop).
 
     Fixpoint path (first : V) (p : list V) :=
@@ -51,8 +50,8 @@ Section __.
 
   Section fold.
     Context {state : Type}.
-    Context (backedge_upd : state -> list V -> V -> state).
-    Context (foreedge_upd : state -> list V -> V -> state).
+    Context (untree_edge_upd : state -> list V -> V -> state).
+    Context (tree_edge_upd : state -> list V -> V -> state).
 
     Definition set_contains vs v :=
       List.existsb (eqb v) vs.
@@ -70,24 +69,59 @@ Section __.
       Definition graph_edge u v := In v (edges u).
 
       Definition state' : Type := list V * state.
-      Definition backedge_upd' '(vs, st) v := (vs, backedge_upd st vs v).
-      Definition foreedge_upd' '(vs, st) v := (v :: vs, foreedge_upd st vs v).
+      Definition untree_edge_upd' '(vs, st) v := (vs, untree_edge_upd st vs v).
+      Definition tree_edge_upd' '(vs, st) v := (v :: vs, tree_edge_upd st vs v).
 
       Definition already_seen (st' : state') v :=
         let '(vs, _) := st' in set_contains vs v.
 
-      Fixpoint dfs_fold' n st' v :=
-        if already_seen st' v then backedge_upd' st' v else
+      Fixpoint dfs_fold' n st' v : state' :=
+        if already_seen st' v then untree_edge_upd' st' v else
           match n with
-          | S n' => fold_left (dfs_fold' n') (edges v) (foreedge_upd' st' v)
+          | S n' => fold_left (dfs_fold' n') (edges v) (tree_edge_upd' st' v)
           | O => st'
           end.
 
-      Definition dfs_fold := dfs_fold' (S (length (map.keys g))).
+      Definition dfs_fold st0 := dfs_fold' (S (length (map.keys g))) ([], st0).
     End with_graph.
 
-    (*adding an edge from a different forest should not change anything*)
-    Lemma dfs_fold_spec X (P : graph -> T -> Prop) x0 :
+    Inductive dfs_fold_state (root : V) (st0 : state') : state' -> list V (*current path*)-> list V (*finished vertices*) -> graph (*explored edges*) -> Prop :=
+    | dfs_init : dfs_fold_state _ _ st0 [] [] map.empty
+    | dfs_tree_edge st p dun g v :
+      ~graph_edge g (hd root p) v ->
+      dfs_fold_state _ _ st p dun g ->
+      already_seen st v = false ->
+      dfs_fold_state _ _ (tree_edge_upd' st v) (v :: p) dun (put_edge g (hd root p) v)
+    | dfs_untree_edge st p dun g v :
+      dfs_fold_state _ _ st p dun g ->
+      ~graph_edge g (hd root p) v ->
+      already_seen st v = true ->
+      dfs_fold_state _ _ (untree_edge_upd' st v) p dun (put_edge g (hd root p) v)
+    | dfs_finish st u p dun g :
+      dfs_fold_state _ _ st (u :: p) dun g ->
+      dfs_fold_state _ _ st p (u :: dun) g.
+
+    (*adding an edge from a different component should not change anything*)
+    Print dfs_fold'.
+    Print map.fold_spec.
+    Print path.
+    From Stdlib Require Import Lia.
+    Lemma dfs_fold'_reachable_spec n root st0 g :
+      forall u st1 p1 dun1 g1,
+        dfs_fold_state root st0 st1 p1 dun1 g1 ->
+        exists p2 dun2 g2,
+          dfs_fold_state root st0 (dfs_fold' g n st1 u) p2 dun2 g2.
+    Proof.
+      induction n.
+      - simpl. intros. Tactics.destruct_one_match.
+        + do 3 eexists. constructor; [eassumption| |]. specialize (H [] ltac:(constructor) ltac:(constructor)).
+        simpl in H. lia.
+      - simpl. intros. subst. Tactics.destruct_one_match.
+        +
+        + cbv [already_seen]
+
+
+      dfs_fold_state root st0
       P map.empty x0 ->
       (forall u v g x,
           has_edge g u v = false ->
