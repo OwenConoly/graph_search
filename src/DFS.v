@@ -280,223 +280,6 @@ Section __.
           [subst b; exact Hseen | apply Htgtpre in Hub; exact Hub].
     Qed.
 
-    (* Soundness + completeness of the functional dfs_fold' from a reachable
-       configuration.  Conclusions 8-11 (v gets visited; every finished vertex's
-       edges are recorded; the parent edge is recorded; recorded edges have
-       visited targets) drive the coverage argument; the fuel hypothesis
-       [unseen_count g st1 < n] makes it go through. *)
-    Lemma dfs_fold'_sound (g : graph) (root : V) (st0 : state')
-          (Hnd : forall x, NoDup (graph.edges g x)) n :
-      forall v st1 p1 dun1 g1,
-        dfs_fold_state root st0 st1 p1 dun1 g1 ->
-        already_seen st1 (hd root p1) = true ->
-        seen_closed st1 g1 ->
-        ~ graph_edge g1 (hd root p1) v ->
-        (forall x b, graph_edge g1 x b -> graph_edge g x b) ->
-        graph_edge g (hd root p1) v ->
-        unseen_count g st1 < n ->
-        (forall u b, already_seen st1 u = true -> ~ In u p1 -> graph_edge g u b ->
-                     graph_edge g1 u b) ->
-        (forall u b, graph_edge g1 u b -> already_seen st1 b = true) ->
-        exists dun2 g2,
-          dfs_fold_state root st0 (dfs_fold' g n st1 v) p1 dun2 g2 /\
-          (forall x, already_seen st1 x = true ->
-                     already_seen (dfs_fold' g n st1 v) x = true) /\
-          seen_closed (dfs_fold' g n st1 v) g2 /\
-          (forall x b, graph_edge g1 x b -> graph_edge g2 x b) /\
-          (forall x b, already_seen st1 x = true -> x <> hd root p1 ->
-                       graph_edge g2 x b -> graph_edge g1 x b) /\
-          (forall b, graph_edge g2 (hd root p1) b ->
-                     graph_edge g1 (hd root p1) b \/ b = v) /\
-          (forall x b, graph_edge g2 x b -> graph_edge g x b) /\
-          already_seen (dfs_fold' g n st1 v) v = true /\
-          (forall u b, already_seen (dfs_fold' g n st1 v) u = true -> ~ In u p1 ->
-                       graph_edge g u b -> graph_edge g2 u b) /\
-          graph_edge g2 (hd root p1) v /\
-          (forall u b, graph_edge g2 u b -> already_seen (dfs_fold' g n st1 v) b = true).
-    Proof.
-      induction n as [|n' IHn];
-        intros v st1 p1 dun1 g1 H0 Htop HI Hfresh Hg1real Hvreal Hfuel HAe1 Htgtpre.
-      - exfalso. cbv [unseen_count] in Hfuel. lia.
-      - assert (Hfold : forall ws st' p dun' g',
-          dfs_fold_state root st0 st' p dun' g' ->
-          already_seen st' (hd root p) = true ->
-          seen_closed st' g' ->
-          (forall w, In w ws -> ~ graph_edge g' (hd root p) w) ->
-          NoDup ws ->
-          (forall x b, graph_edge g' x b -> graph_edge g x b) ->
-          (forall w, In w ws -> graph_edge g (hd root p) w) ->
-          (ws <> [] -> unseen_count g st' < n') ->
-          (forall u b, already_seen st' u = true -> ~ In u p -> graph_edge g u b ->
-                       graph_edge g' u b) ->
-          (forall u b, graph_edge g' u b -> already_seen st' b = true) ->
-          exists dun2 g2,
-            dfs_fold_state root st0 (fold_left (dfs_fold' g n') ws st') p dun2 g2 /\
-            (forall x, already_seen st' x = true ->
-                       already_seen (fold_left (dfs_fold' g n') ws st') x = true) /\
-            seen_closed (fold_left (dfs_fold' g n') ws st') g2 /\
-            (forall x b, graph_edge g' x b -> graph_edge g2 x b) /\
-            (forall x b, already_seen st' x = true -> x <> hd root p ->
-                         graph_edge g2 x b -> graph_edge g' x b) /\
-            (forall b, graph_edge g2 (hd root p) b ->
-                       graph_edge g' (hd root p) b \/ In b ws) /\
-            (forall x b, graph_edge g2 x b -> graph_edge g x b) /\
-            (forall w, In w ws -> graph_edge g2 (hd root p) w) /\
-            (forall u b, already_seen (fold_left (dfs_fold' g n') ws st') u = true ->
-                         ~ In u p -> graph_edge g u b -> graph_edge g2 u b) /\
-            (forall u b, graph_edge g2 u b ->
-                         already_seen (fold_left (dfs_fold' g n') ws st') b = true)).
-        { intros ws. induction ws as [|w ws IHws];
-            intros st' p dun' g' Hstate Htop' HI' Hfr Hnodup Hg'real Hwsreal Hfuel' HAe' Htgtpre'.
-          - cbn [fold_left]. exists dun', g'.
-            split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]].
-            + exact Hstate.
-            + intros x Hx; exact Hx.
-            + exact HI'.
-            + intros x b Hxb; exact Hxb.
-            + intros x b _ _ Hxb; exact Hxb.
-            + intros b Hb; left; exact Hb.
-            + exact Hg'real.
-            + intros w [].
-            + exact HAe'.
-            + exact Htgtpre'.
-          - apply NoDup_cons_iff in Hnodup. destruct Hnodup as [Hnin Hndws].
-            cbn [fold_left].
-            assert (Hfuelw : unseen_count g st' < n') by (apply Hfuel'; discriminate).
-            destruct (IHn w st' p dun' g'
-                          Hstate Htop' HI' (Hfr w (or_introl eq_refl))
-                          Hg'real (Hwsreal w (or_introl eq_refl)) Hfuelw HAe' Htgtpre')
-              as (dunw & gw & Hstatew & Hmonow & Hclosedw & Hgmonow & H6w & H7w & Hrealw
-                    & Hvvisw & HAe2w & Hparentw & Htgtw).
-            assert (Htopw : already_seen (dfs_fold' g n' st' w) (hd root p) = true)
-              by (apply Hmonow; exact Htop').
-            assert (Hfrw : forall w0, In w0 ws -> ~ graph_edge gw (hd root p) w0).
-            { intros w0 Hin0 Hc. apply H7w in Hc. destruct Hc as [Hc|Hc].
-              - exact (Hfr w0 (or_intror Hin0) Hc).
-              - subst w0. contradiction. }
-            assert (Hfueltail : ws <> [] -> unseen_count g (dfs_fold' g n' st' w) < n').
-            { intros _. pose proof (unseen_count_mono g st' (dfs_fold' g n' st' w) Hmonow). lia. }
-            destruct (IHws (dfs_fold' g n' st' w) p dunw gw
-                           Hstatew Htopw Hclosedw Hfrw Hndws Hrealw
-                           (fun w0 Hin0 => Hwsreal w0 (or_intror Hin0)) Hfueltail HAe2w Htgtw)
-              as (dun2 & g2 & Hstate2 & Hmono2 & Hclosed2 & Hgmono2 & H62 & H72 & Hreal2
-                    & Hwsedge2 & HAe22 & Htgt2).
-            exists dun2, g2.
-            split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]].
-            + exact Hstate2.
-            + intros x Hx. apply Hmono2. apply Hmonow. exact Hx.
-            + exact Hclosed2.
-            + intros x b Hxb. apply Hgmono2. apply Hgmonow. exact Hxb.
-            + intros x b Hx Hxt Hxb.
-              apply H6w; [exact Hx | exact Hxt |].
-              apply H62; [ apply Hmonow; exact Hx | exact Hxt | exact Hxb ].
-            + intros b Hb. apply H72 in Hb. destruct Hb as [Hb|Hb].
-              * apply H7w in Hb. destruct Hb as [Hb|Hb].
-                -- left. exact Hb.
-                -- right. left. symmetry. exact Hb.
-              * right. right. exact Hb.
-            + exact Hreal2.
-            + intros w0 Hin0. destruct Hin0 as [Hw0|Hin0].
-              * rewrite <- Hw0. apply Hgmono2. exact Hparentw.
-              * apply Hwsedge2. exact Hin0.
-            + exact HAe22.
-            + exact Htgt2. }
-        destruct (already_seen st1 v) eqn:E.
-        + assert (Hres : dfs_fold' g (S n') st1 v = untree_edge_upd' st1 v)
-            by (rewrite dfs_fold'_S, E; reflexivity).
-          rewrite Hres. eapply dfs_fold'_sound_seen; eassumption.
-        + assert (Hres : dfs_fold' g (S n') st1 v
-                         = fold_left (dfs_fold' g n') (graph.edges g v) (tree_edge_upd' st1 v))
-            by (rewrite dfs_fold'_S, E; reflexivity).
-          rewrite Hres. clear Hres.
-          assert (Htv : v <> hd root p1)
-            by (intro Heq; rewrite <- Heq in Htop; congruence).
-          assert (Hpush : dfs_fold_state root st0 (tree_edge_upd' st1 v) (v :: p1) dun1
-                            (graph.put g1 (hd root p1) v))
-            by (apply dfs_tree_edge; assumption).
-          assert (Htop2 : already_seen (tree_edge_upd' st1 v) (hd root (v :: p1)) = true).
-          { cbn [hd]. rewrite already_seen_tree, eqb_reflV. reflexivity. }
-          assert (Hclosed2 : seen_closed (tree_edge_upd' st1 v) (graph.put g1 (hd root p1) v)).
-          { intros x b Hxb. rewrite already_seen_tree. apply Bool.orb_true_iff. right.
-            apply graph_edge_put_edge in Hxb. destruct Hxb as [[Hx _]|Hxb].
-            - subst x. exact Htop.
-            - apply HI in Hxb. exact Hxb. }
-          assert (Hfr2 : forall w, In w (graph.edges g v) ->
-                           ~ graph_edge (graph.put g1 (hd root p1) v) (hd root (v :: p1)) w).
-          { intros w _ Hc. cbn [hd] in Hc. apply graph_edge_put_edge in Hc.
-            destruct Hc as [[Hvt _]|Hc].
-            - exact (Htv Hvt).
-            - apply HI in Hc. congruence. }
-          assert (Hg'real2 : forall x b,
-                      graph_edge (graph.put g1 (hd root p1) v) x b -> graph_edge g x b).
-          { intros x b Hxb. apply graph_edge_put_edge in Hxb.
-            destruct Hxb as [[Hx Hb]|Hxb];
-              [subst x b; exact Hvreal | apply Hg1real; exact Hxb]. }
-          assert (Hwsreal2 : forall w, In w (graph.edges g v) ->
-                               graph_edge g (hd root (v :: p1)) w).
-          { intros w Hw. cbn [hd]. exact Hw. }
-          assert (Hfuel2 : graph.edges g v <> [] ->
-                             unseen_count g (tree_edge_upd' st1 v) < n').
-          { intros Hne. assert (Hsrc : In v (graph.sources g))
-              by (apply graph.sources_spec; exact Hne).
-            pose proof (unseen_count_push g st1 v E Hsrc). lia. }
-          assert (HAe'2 : forall u b, already_seen (tree_edge_upd' st1 v) u = true ->
-                            ~ In u (v :: p1) -> graph_edge g u b ->
-                            graph_edge (graph.put g1 (hd root p1) v) u b).
-          { intros u b Hu Hue Hub. rewrite already_seen_tree in Hu.
-            apply Bool.orb_true_iff in Hu. destruct Hu as [Huv|Hu].
-            - exfalso. assert (u = v) by (destr (eqb u v); congruence).
-              subst u. apply Hue. left. reflexivity.
-            - apply graph_edge_put_edge. right. apply HAe1; [exact Hu | | exact Hub].
-              intro Hin. apply Hue. right. exact Hin. }
-          assert (Htgtpre2 : forall u b,
-                      graph_edge (graph.put g1 (hd root p1) v) u b ->
-                      already_seen (tree_edge_upd' st1 v) b = true).
-          { intros u b Hub. rewrite already_seen_tree. apply Bool.orb_true_iff.
-            apply graph_edge_put_edge in Hub. destruct Hub as [[_ Hbv]|Hub].
-            - left. subst b. apply eqb_reflV.
-            - right. apply Htgtpre in Hub. exact Hub. }
-          destruct (Hfold (graph.edges g v) (tree_edge_upd' st1 v) (v :: p1) dun1
-                          (graph.put g1 (hd root p1) v) Hpush Htop2 Hclosed2 Hfr2 (Hnd v)
-                          Hg'real2 Hwsreal2 Hfuel2 HAe'2 Htgtpre2)
-            as (dun2 & g2 & Hstate2 & Hmono2 & Hclosed2' & Hgmono2 & H62 & H72 & Hreal2
-                  & Hwsedge2 & HAe22 & Htgt2).
-          exists (v :: dun2), g2.
-          split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]]].
-          * apply dfs_finish. exact Hstate2.
-          * intros x Hx. apply Hmono2.
-            rewrite already_seen_tree, Hx, Bool.orb_true_r. reflexivity.
-          * exact Hclosed2'.
-          * intros x b Hxb. apply Hgmono2. apply graph_edge_put_edge. right. exact Hxb.
-          * intros x b Hx Hxt Hxb.
-            assert (Hxv : x <> v) by (intro Heq; subst x; congruence).
-            assert (Hg' : graph_edge (graph.put g1 (hd root p1) v) x b).
-            { apply H62;
-                [ rewrite already_seen_tree, Hx, Bool.orb_true_r; reflexivity
-                | cbn [hd]; exact Hxv
-                | exact Hxb ]. }
-            apply graph_edge_put_edge in Hg'.
-            destruct Hg' as [[He _]|Hg']; [congruence | exact Hg'].
-          * intros b Hb.
-            assert (Hg' : graph_edge (graph.put g1 (hd root p1) v) (hd root p1) b).
-            { apply H62;
-                [ rewrite already_seen_tree, Htop; apply Bool.orb_true_r
-                | cbn [hd]; intro Heq; exact (Htv (eq_sym Heq))
-                | exact Hb ]. }
-            apply graph_edge_put_edge in Hg'.
-            destruct Hg' as [[_ Hbv]|Hg']; [right; exact Hbv | left; exact Hg'].
-          * exact Hreal2.
-          * apply Hmono2. rewrite already_seen_tree, eqb_reflV. reflexivity.
-          * intros u b Hu Hue Hub. destr (eqb u v).
-            -- subst. apply Hwsedge2. exact Hub.
-            -- apply HAe22; [exact Hu | | exact Hub].
-               intro Hin. cbn [In] in Hin. destruct Hin as [Hvu|Hin].
-               ++ congruence.
-               ++ apply Hue; exact Hin.
-          * apply Hgmono2. apply graph_edge_put_edge. left. split; reflexivity.
-          * intros u b Hub. apply Htgt2 in Hub. exact Hub.
-    Qed.
-
     (* Soundness + completeness lifted to a left fold over a child list. *)
     Lemma dfs_fold_edges_sound (g : graph) (root : V) (st0 : state')
           (Hnd : forall x, NoDup (graph.edges g x)) n :
@@ -529,61 +312,191 @@ Section __.
           (forall u b, graph_edge g2 u b ->
                        already_seen (fold_left (dfs_fold' g n) ws st') b = true).
     Proof.
-      intros ws. induction ws as [|w ws IHws];
-        intros st' p dun' g' Hstate Htop' HI' Hfr Hnodup Hg'real Hwsreal Hfuel' HAe' Htgtpre'.
-      - cbn [fold_left]. exists dun', g'.
-        split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]].
-        + exact Hstate.
-        + intros x Hx; exact Hx.
-        + exact HI'.
-        + intros x b Hxb; exact Hxb.
-        + intros x b _ _ Hxb; exact Hxb.
-        + intros b Hb; left; exact Hb.
-        + exact Hg'real.
-        + intros w [].
-        + exact HAe'.
-        + exact Htgtpre'.
-      - apply NoDup_cons_iff in Hnodup. destruct Hnodup as [Hnin Hndws].
-        cbn [fold_left].
-        assert (Hfuelw : unseen_count g st' < n) by (apply Hfuel'; discriminate).
-        destruct (dfs_fold'_sound g root st0 Hnd n w st' p dun' g'
-                    Hstate Htop' HI' (Hfr w (or_introl eq_refl))
-                    Hg'real (Hwsreal w (or_introl eq_refl)) Hfuelw HAe' Htgtpre')
-          as (dunw & gw & Hstatew & Hmonow & Hclosedw & Hgmonow & H6w & H7w & Hrealw
-                & Hvvisw & HAe2w & Hparentw & Htgtw).
-        assert (Htopw : already_seen (dfs_fold' g n st' w) (hd root p) = true)
-          by (apply Hmonow; exact Htop').
-        assert (Hfrw : forall w0, In w0 ws -> ~ graph_edge gw (hd root p) w0).
-        { intros w0 Hin0 Hc. apply H7w in Hc. destruct Hc as [Hc|Hc].
-          - exact (Hfr w0 (or_intror Hin0) Hc).
-          - subst w0. contradiction. }
-        assert (Hfueltail : ws <> [] -> unseen_count g (dfs_fold' g n st' w) < n).
-        { intros _. pose proof (unseen_count_mono g st' (dfs_fold' g n st' w) Hmonow). lia. }
-        destruct (IHws (dfs_fold' g n st' w) p dunw gw
-                       Hstatew Htopw Hclosedw Hfrw Hndws Hrealw
-                       (fun w0 Hin0 => Hwsreal w0 (or_intror Hin0)) Hfueltail HAe2w Htgtw)
-          as (dun2 & g2 & Hstate2 & Hmono2 & Hclosed2 & Hgmono2 & H62 & H72 & Hreal2
-                & Hwsedge2 & HAe22 & Htgt2).
-        exists dun2, g2.
-        split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]].
-        + exact Hstate2.
-        + intros x Hx. apply Hmono2. apply Hmonow. exact Hx.
-        + exact Hclosed2.
-        + intros x b Hxb. apply Hgmono2. apply Hgmonow. exact Hxb.
-        + intros x b Hx Hxt Hxb.
-          apply H6w; [exact Hx | exact Hxt |].
-          apply H62; [ apply Hmonow; exact Hx | exact Hxt | exact Hxb ].
-        + intros b Hb. apply H72 in Hb. destruct Hb as [Hb|Hb].
-          * apply H7w in Hb. destruct Hb as [Hb|Hb].
-            -- left. exact Hb.
-            -- right. left. symmetry. exact Hb.
-          * right. right. exact Hb.
-        + exact Hreal2.
-        + intros w0 Hin0. destruct Hin0 as [Hw0|Hin0].
-          * rewrite <- Hw0. apply Hgmono2. exact Hparentw.
-          * apply Hwsedge2. exact Hin0.
-        + exact HAe22.
-        + exact Htgt2.
+      induction n as [|n' IHn].
+      - intros ws st' p dun' g' Hstate Htop' HI' Hfr Hnodup Hg'real Hwsreal Hfuel' HAe' Htgtpre'.
+        destruct ws as [|w ws].
+        + cbn [fold_left]. exists dun', g'.
+          split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]].
+          * exact Hstate.
+          * intros x Hx; exact Hx.
+          * exact HI'.
+          * intros x b Hxb; exact Hxb.
+          * intros x b _ _ Hxb; exact Hxb.
+          * intros b Hb; left; exact Hb.
+          * exact Hg'real.
+          * intros w [].
+          * exact HAe'.
+          * exact Htgtpre'.
+        + exfalso. assert (Hf : unseen_count g st' < 0) by (apply Hfuel'; discriminate). lia.
+      - intros ws. induction ws as [|w ws IHws];
+          intros st' p dun' g' Hstate Htop' HI' Hfr Hnodup Hg'real Hwsreal Hfuel' HAe' Htgtpre'.
+        + cbn [fold_left]. exists dun', g'.
+          split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]].
+          * exact Hstate.
+          * intros x Hx; exact Hx.
+          * exact HI'.
+          * intros x b Hxb; exact Hxb.
+          * intros x b _ _ Hxb; exact Hxb.
+          * intros b Hb; left; exact Hb.
+          * exact Hg'real.
+          * intros w [].
+          * exact HAe'.
+          * exact Htgtpre'.
+        + apply NoDup_cons_iff in Hnodup. destruct Hnodup as [Hnin Hndws].
+          cbn [fold_left].
+          assert (Hhead : exists dunw gw,
+              dfs_fold_state root st0 (dfs_fold' g (S n') st' w) p dunw gw /\
+              (forall x, already_seen st' x = true ->
+                         already_seen (dfs_fold' g (S n') st' w) x = true) /\
+              seen_closed (dfs_fold' g (S n') st' w) gw /\
+              (forall x b, graph_edge g' x b -> graph_edge gw x b) /\
+              (forall x b, already_seen st' x = true -> x <> hd root p ->
+                           graph_edge gw x b -> graph_edge g' x b) /\
+              (forall b, graph_edge gw (hd root p) b ->
+                         graph_edge g' (hd root p) b \/ b = w) /\
+              (forall x b, graph_edge gw x b -> graph_edge g x b) /\
+              already_seen (dfs_fold' g (S n') st' w) w = true /\
+              (forall u b, already_seen (dfs_fold' g (S n') st' w) u = true -> ~ In u p ->
+                           graph_edge g u b -> graph_edge gw u b) /\
+              graph_edge gw (hd root p) w /\
+              (forall u b, graph_edge gw u b ->
+                           already_seen (dfs_fold' g (S n') st' w) b = true)).
+          { destruct (already_seen st' w) eqn:Eseen.
+            - assert (Hres : dfs_fold' g (S n') st' w = untree_edge_upd' st' w)
+                by (rewrite dfs_fold'_S, Eseen; reflexivity).
+              rewrite Hres.
+              apply (dfs_fold'_sound_seen g root st0 w st' p dun' g'
+                       Hstate Htop' HI' (Hfr w (or_introl eq_refl)) Eseen
+                       Hg'real (Hwsreal w (or_introl eq_refl)) HAe' Htgtpre').
+            - assert (Hres : dfs_fold' g (S n') st' w
+                             = fold_left (dfs_fold' g n') (graph.edges g w) (tree_edge_upd' st' w))
+                by (rewrite dfs_fold'_S, Eseen; reflexivity).
+              rewrite Hres. clear Hres.
+              assert (Htw : w <> hd root p)
+                by (intro Heq; rewrite <- Heq in Htop'; congruence).
+              assert (Hpush : dfs_fold_state root st0 (tree_edge_upd' st' w) (w :: p) dun'
+                                (graph.put g' (hd root p) w))
+                by (apply dfs_tree_edge;
+                    [apply (Hfr w (or_introl eq_refl)) | exact Hstate | exact Eseen]).
+              assert (Htop2 : already_seen (tree_edge_upd' st' w) (hd root (w :: p)) = true).
+              { cbn [hd]. rewrite already_seen_tree, eqb_reflV. reflexivity. }
+              assert (Hclosed2 : seen_closed (tree_edge_upd' st' w) (graph.put g' (hd root p) w)).
+              { intros x b Hxb. rewrite already_seen_tree. apply Bool.orb_true_iff. right.
+                apply graph_edge_put_edge in Hxb. destruct Hxb as [[Hx _]|Hxb].
+                - subst x. exact Htop'.
+                - apply HI' in Hxb. exact Hxb. }
+              assert (Hfr2 : forall w0, In w0 (graph.edges g w) ->
+                               ~ graph_edge (graph.put g' (hd root p) w) (hd root (w :: p)) w0).
+              { intros w0 _ Hc. cbn [hd] in Hc. apply graph_edge_put_edge in Hc.
+                destruct Hc as [[Hwt _]|Hc].
+                - exact (Htw Hwt).
+                - apply HI' in Hc. congruence. }
+              assert (Hg'real2 : forall x b,
+                          graph_edge (graph.put g' (hd root p) w) x b -> graph_edge g x b).
+              { intros x b Hxb. apply graph_edge_put_edge in Hxb.
+                destruct Hxb as [[Hx Hb]|Hxb];
+                  [subst x b; apply (Hwsreal w (or_introl eq_refl)) | apply Hg'real; exact Hxb]. }
+              assert (Hwsreal2 : forall w0, In w0 (graph.edges g w) ->
+                                   graph_edge g (hd root (w :: p)) w0).
+              { intros w0 Hw0. cbn [hd]. exact Hw0. }
+              assert (Hfuel2 : graph.edges g w <> [] ->
+                                 unseen_count g (tree_edge_upd' st' w) < n').
+              { intros Hne. assert (Hsrc : In w (graph.sources g))
+                  by (apply graph.sources_spec; exact Hne).
+                assert (Hpushlt : unseen_count g (tree_edge_upd' st' w) < unseen_count g st')
+                  by (apply unseen_count_push; [exact Eseen | exact Hsrc]).
+                assert (Hle : unseen_count g st' < S n') by (apply Hfuel'; discriminate).
+                lia. }
+              assert (HAe'2 : forall u b, already_seen (tree_edge_upd' st' w) u = true ->
+                                ~ In u (w :: p) -> graph_edge g u b ->
+                                graph_edge (graph.put g' (hd root p) w) u b).
+              { intros u b Hu Hue Hub. rewrite already_seen_tree in Hu.
+                apply Bool.orb_true_iff in Hu. destruct Hu as [Huw|Hu].
+                - exfalso. assert (u = w) by (destr (eqb u w); congruence).
+                  subst u. apply Hue. left. reflexivity.
+                - apply graph_edge_put_edge. right. apply HAe'; [exact Hu | | exact Hub].
+                  intro Hin. apply Hue. right. exact Hin. }
+              assert (Htgtpre2 : forall u b,
+                          graph_edge (graph.put g' (hd root p) w) u b ->
+                          already_seen (tree_edge_upd' st' w) b = true).
+              { intros u b Hub. rewrite already_seen_tree. apply Bool.orb_true_iff.
+                apply graph_edge_put_edge in Hub. destruct Hub as [[_ Hbw]|Hub].
+                - left. subst b. apply eqb_reflV.
+                - right. apply Htgtpre' in Hub. exact Hub. }
+              destruct (IHn (graph.edges g w) (tree_edge_upd' st' w) (w :: p) dun'
+                            (graph.put g' (hd root p) w) Hpush Htop2 Hclosed2 Hfr2 (Hnd w)
+                            Hg'real2 Hwsreal2 Hfuel2 HAe'2 Htgtpre2)
+                as (dun2 & g2 & Hstate2 & Hmono2 & Hclosed2' & Hgmono2 & H62 & H72 & Hreal2
+                      & Hwsedge2 & HAe22 & Htgt2).
+              exists (w :: dun2), g2.
+              split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]]].
+              + apply dfs_finish. exact Hstate2.
+              + intros x Hx. apply Hmono2.
+                rewrite already_seen_tree, Hx, Bool.orb_true_r. reflexivity.
+              + exact Hclosed2'.
+              + intros x b Hxb. apply Hgmono2. apply graph_edge_put_edge. right. exact Hxb.
+              + intros x b Hx Hxt Hxb.
+                assert (Hxw : x <> w) by (intro Heq; subst x; congruence).
+                assert (Hg'0 : graph_edge (graph.put g' (hd root p) w) x b).
+                { apply H62;
+                    [ rewrite already_seen_tree, Hx, Bool.orb_true_r; reflexivity
+                    | cbn [hd]; exact Hxw
+                    | exact Hxb ]. }
+                apply graph_edge_put_edge in Hg'0.
+                destruct Hg'0 as [[He _]|Hg'0]; [congruence | exact Hg'0].
+              + intros b Hb.
+                assert (Hg'0 : graph_edge (graph.put g' (hd root p) w) (hd root p) b).
+                { apply H62;
+                    [ rewrite already_seen_tree, Htop'; apply Bool.orb_true_r
+                    | cbn [hd]; intro Heq; exact (Htw (eq_sym Heq))
+                    | exact Hb ]. }
+                apply graph_edge_put_edge in Hg'0.
+                destruct Hg'0 as [[_ Hbw]|Hg'0]; [right; exact Hbw | left; exact Hg'0].
+              + exact Hreal2.
+              + apply Hmono2. rewrite already_seen_tree, eqb_reflV. reflexivity.
+              + intros u b Hu Hue Hub. destr (eqb u w).
+                -- subst. apply Hwsedge2. exact Hub.
+                -- apply HAe22; [exact Hu | | exact Hub].
+                   intro Hin. cbn [In] in Hin. destruct Hin as [Hwu|Hin].
+                   ++ congruence.
+                   ++ apply Hue; exact Hin.
+              + apply Hgmono2. apply graph_edge_put_edge. left. split; reflexivity.
+              + intros u b Hub. apply Htgt2 in Hub. exact Hub. }
+          destruct Hhead as (dunw & gw & Hstatew & Hmonow & Hclosedw & Hgmonow & H6w & H7w
+                & Hrealw & Hvvisw & HAe2w & Hparentw & Htgtw).
+          assert (Htopw : already_seen (dfs_fold' g (S n') st' w) (hd root p) = true)
+            by (apply Hmonow; exact Htop').
+          assert (Hfrw : forall w0, In w0 ws -> ~ graph_edge gw (hd root p) w0).
+          { intros w0 Hin0 Hc. apply H7w in Hc. destruct Hc as [Hc|Hc].
+            - exact (Hfr w0 (or_intror Hin0) Hc).
+            - subst w0. contradiction. }
+          assert (Hfueltail : ws <> [] -> unseen_count g (dfs_fold' g (S n') st' w) < S n').
+          { intros _. assert (Hle : unseen_count g st' < S n') by (apply Hfuel'; discriminate).
+            pose proof (unseen_count_mono g st' (dfs_fold' g (S n') st' w) Hmonow). lia. }
+          destruct (IHws (dfs_fold' g (S n') st' w) p dunw gw
+                         Hstatew Htopw Hclosedw Hfrw Hndws Hrealw
+                         (fun w0 Hin0 => Hwsreal w0 (or_intror Hin0)) Hfueltail HAe2w Htgtw)
+            as (dun2 & g2 & Hstate2 & Hmono2 & Hclosed2 & Hgmono2 & H62 & H72 & Hreal2
+                  & Hwsedge2 & HAe22 & Htgt2).
+          exists dun2, g2. ssplit.
+          * exact Hstate2.
+          * intros x Hx. apply Hmono2. apply Hmonow. exact Hx.
+          * exact Hclosed2.
+          * intros x b Hxb. apply Hgmono2. apply Hgmonow. exact Hxb.
+          * intros x b Hx Hxt Hxb.
+            apply H6w; [exact Hx | exact Hxt |].
+            apply H62; [ apply Hmonow; exact Hx | exact Hxt | exact Hxb ].
+          * intros b Hb. apply H72 in Hb. destruct Hb as [Hb|Hb].
+            -- apply H7w in Hb. destruct Hb as [Hb|Hb].
+               ++ left. exact Hb.
+               ++ right. left. symmetry. exact Hb.
+            -- right. right. exact Hb.
+          * exact Hreal2.
+          * intros w0 Hin0. destruct Hin0 as [Hw0|Hin0].
+            -- rewrite <- Hw0. apply Hgmono2. exact Hparentw.
+            -- apply Hwsedge2. exact Hin0.
+          * exact HAe22.
+          * exact Htgt2.
     Qed.
 
     (* Top-level correctness: with all edge sources reachable from [root] and
