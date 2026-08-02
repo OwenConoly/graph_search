@@ -19,12 +19,6 @@ Section __.
     Definition path_to first p last :=
       path first p /\ last = List.last p first.
 
-    Definition locally_tree root :=
-      forall n p1 p2,
-        path_to root p1 n ->
-        path_to root p2 n ->
-        p1 = p2.
-
     Definition reachable root :=
       forall u v, edge u v ->
              exists p, path_to root p u.
@@ -81,14 +75,6 @@ Section __.
 
     Context {ok : graph.ok graph}.
     Context {eqb_ok : Eqb_ok eqbV}.
-
-    Lemma set_contains_true_iff vs v :
-      set_contains vs v = true <-> In v vs.
-    Proof.
-      cbv [set_contains]. rewrite existsb_exists. split.
-      - intros (x & Hin & Hx). destr (eqb v x); congruence.
-      - intros Hin. exists v. split; [assumption|]. destr (eqb v v); congruence.
-    Qed.
 
     Lemma graph_edge_put_edge g u v a b :
       graph_edge (graph.put g u v) a b <-> (a = u /\ b = v) \/ graph_edge g a b.
@@ -255,7 +241,7 @@ Section __.
     Proof.
       intros H0 Htop HI Hfresh Hseen Hg1real Hvreal HAe1 Htgtpre.
       exists dun1, (graph.put g1 (hd root p1) v).
-      split; [|split; [|split; [|split; [|split; [|split; [|split; [|split; [|split; [|split]]]]]]]]].
+      ssplit.
       - apply dfs_untree_edge; assumption.
       - intros x Hx. rewrite already_seen_untree. exact Hx.
       - intros x b Hxb. rewrite already_seen_untree.
@@ -280,7 +266,12 @@ Section __.
           [subst b; exact Hseen | apply Htgtpre in Hub; exact Hub].
     Qed.
 
-    (* Soundness + completeness lifted to a left fold over a child list. *)
+    (* Soundness + completeness of the child-list fold from a reachable
+       configuration.  The single-vertex step is folded in: an already-seen
+       child is a back/cross edge (dfs_fold'_sound_seen); an unseen child
+       pushes and recurses through the fuel induction hypothesis.  Conclusions
+       8-10 (children get recorded/visited, recorded edges have visited
+       targets) drive the coverage argument, gated by [unseen_count g st' < n]. *)
     Lemma dfs_fold_edges_sound (g : graph) (root : V) (st0 : state')
           (Hnd : forall x, NoDup (graph.edges g x)) n :
       forall ws st' p dun' g',
@@ -316,7 +307,7 @@ Section __.
       - intros ws st' p dun' g' Hstate Htop' HI' Hfr Hnodup Hg'real Hwsreal Hfuel' HAe' Htgtpre'.
         destruct ws as [|w ws].
         + cbn [fold_left]. exists dun', g'.
-          split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]].
+          ssplit.
           * exact Hstate.
           * intros x Hx; exact Hx.
           * exact HI'.
@@ -331,7 +322,7 @@ Section __.
       - intros ws. induction ws as [|w ws IHws];
           intros st' p dun' g' Hstate Htop' HI' Hfr Hnodup Hg'real Hwsreal Hfuel' HAe' Htgtpre'.
         + cbn [fold_left]. exists dun', g'.
-          split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]].
+          ssplit.
           * exact Hstate.
           * intros x Hx; exact Hx.
           * exact HI'.
@@ -429,7 +420,7 @@ Section __.
                 as (dun2 & g2 & Hstate2 & Hmono2 & Hclosed2' & Hgmono2 & H62 & H72 & Hreal2
                       & Hwsedge2 & HAe22 & Htgt2).
               exists (w :: dun2), g2.
-              split; [|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split;[|split]]]]]]]]].
+              ssplit.
               + apply dfs_finish. exact Hstate2.
               + intros x Hx. apply Hmono2.
                 rewrite already_seen_tree, Hx, Bool.orb_true_r. reflexivity.
