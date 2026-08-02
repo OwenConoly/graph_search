@@ -1,0 +1,29 @@
+From Stdlib Require Import List.
+Import ListNotations.
+
+Definition same_set {A} (l1 l2 : list A) := incl l1 l2 /\ incl l2 l1.
+(*closely following Map.Interface, because idk what i am doing*)
+Module graph.
+Class graph {vertex} := {
+    rep : Type;
+    edges: rep -> vertex -> list vertex;
+    empty : rep;
+    put : rep -> vertex -> vertex -> rep;
+    remove : rep -> vertex -> vertex -> rep;
+    sources : rep -> list vertex;
+  }.
+Arguments graph : clear implicits.
+Global Coercion rep : graph >-> Sortclass.
+Global Hint Mode graph + : typeclass_instances.
+Local Hint Mode graph - : typeclass_instances.
+
+Class ok {vertex} {graph : graph vertex} : Prop := {
+    graph_ext : forall g1 g2, (forall v, same_set (edges g1 v) (edges g2 v)) -> g1 = g2;
+    edges_empty : forall v, edges empty v = [];
+    edges_put_same : forall g u v, In v (edges (put g u v) u);
+    edges_put_diff : forall g u v v', v <> v' -> In v' (edges (put g u v) u) <-> In v' (edges g u);
+    edges_remove_same : forall g u v, ~In v (edges (remove g u v) u);
+    edges_remove_diff : True;
+    sources_spec : forall g u, In u (sources g) <-> edges g u <> nil;
+  }.
+Arguments ok {_} _.
