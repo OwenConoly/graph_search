@@ -19,6 +19,12 @@ Section __.
     Definition path_to first p last :=
       path first p /\ last = List.last p first.
 
+    Definition locally_tree root :=
+      forall n p1 p2,
+        path_to root p1 n ->
+        path_to root p2 n ->
+        p1 = p2.
+
     Definition reachable root :=
       forall u v, edge u v ->
              exists p, path_to root p u.
