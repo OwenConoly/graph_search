@@ -82,6 +82,70 @@ Section __.
     Context {ok : graph.ok graph}.
     Context {eqb_ok : Eqb_ok eqbV}.
 
+    (* [u] is reachable from [a] by a DFS descent of depth <= [len] that only
+       ever steps into vertices outside [vs].  The root [a] itself may be in
+       [vs]: it is the vertex currently being expanded. *)
+    Inductive reach_av (g : graph) (vs : list V) : nat -> V -> V -> Prop :=
+    | reach_av_refl n a : reach_av g vs n a a
+    | reach_av_step n a b c :
+      graph_edge g a b -> ~ In b vs -> reach_av g vs n b c ->
+      reach_av g vs (S n) a c.
+
+    (* [g'] is [g] cut down to edges whose source is reachable as above. *)
+    Definition restrict vs len root g g' :=
+      forall u x, graph_edge g' u x <-> graph_edge g u x /\ reach_av g vs len root u.
+
+    Lemma reach_av_mono g vs n m a b :
+      n <= m -> reach_av g vs n a b -> reach_av g vs m a b.
+    Proof.
+      intros Hnm H. revert m Hnm. induction H as [n a|n a b c Hab Hb Hbc IH];
+        intros m Hnm.
+      - apply reach_av_refl.
+      - destruct m as [|m']; [lia|].
+        eapply reach_av_step; [exact Hab | exact Hb | apply IH; lia].
+    Qed.
+
+    Lemma reach_av_cons g vs n a u :
+      reach_av g vs (S n) a u <->
+        a = u \/ exists b, graph_edge g a b /\ ~ In b vs /\ reach_av g vs n b u.
+    Proof.
+      split.
+      - inversion 1; subst; [left; reflexivity|].
+        right. eexists. split; [eassumption|]. split; eassumption.
+      - intros [Hau | (b & Hab & Hb & Hbu)];
+          [subst; apply reach_av_refl | eapply reach_av_step; eassumption].
+    Qed.
+
+    Lemma reach_av_vs_antimono g vs1 vs2 n a b :
+      incl vs1 vs2 -> reach_av g vs2 n a b -> reach_av g vs1 n a b.
+    Proof.
+      intros Hincl H. induction H as [n a|n a c d Hac Hc Hcd IH].
+      - apply reach_av_refl.
+      - eapply reach_av_step; [exact Hac | intro Hin; apply Hc, Hincl, Hin | exact IH].
+    Qed.
+
+    Lemma reach_av_dst g vs n a b :
+      reach_av g vs n a b -> ~ In a vs -> ~ In b vs.
+    Proof.
+      induction 1 as [n a|n a c d Hac Hc Hcd IH]; intros Ha; [exact Ha | apply IH; exact Hc].
+    Qed.
+
+    (* Coverage: from a seen start, [reach_av] stays inside the seen set as long
+       as it stays off the path, which it does since it never re-enters [vs]. *)
+    Lemma reach_av_seen (R : state') p vs g n w u :
+      incl p vs ->
+      (forall z b, already_seen R z = true -> ~ In z p -> graph_edge g z b ->
+                   already_seen R b = true) ->
+      reach_av g vs n w u -> already_seen R w = true -> ~ In w vs ->
+      already_seen R u = true.
+    Proof.
+      intros Hpv Hclos H. induction H as [n a|n a b c Hab Hb Hbc IH];
+        intros Hseen Havs.
+      - exact Hseen.
+      - apply IH; [| exact Hb].
+        apply (Hclos a b); [exact Hseen | intro Hp; apply Havs, Hpv, Hp | exact Hab].
+    Qed.
+
     Lemma graph_edge_put_edge g u v a b :
       graph_edge (graph.put g u v) a b <-> (a = u /\ b = v) \/ graph_edge g a b.
     Proof.
@@ -107,6 +171,36 @@ Section __.
     Lemma eqb_reflV x : eqb x x = true.
     Proof. destr (eqb x x); congruence. Qed.
 
+    Lemma already_seen_iff st v :
+      already_seen st v = true <-> In v (fst st).
+    Proof.
+      destruct st as [vs s]. cbv [already_seen set_contains fst].
+      rewrite existsb_exists. split.
+      - intros (y & Hin & Hy). destr (eqb v y); congruence.
+      - intros Hin. exists v. split; [exact Hin | apply eqb_reflV].
+    Qed.
+
+    Lemma already_seen_cong st1 st2 v :
+      fst st1 = fst st2 -> already_seen st1 v = already_seen st2 v.
+    Proof. destruct st1 as [vs1 s1], st2 as [vs2 s2]. cbn. intros ->; reflexivity. Qed.
+
+    Lemma fst_tree st v : fst (tree_edge_upd' st v) = v :: fst st.
+    Proof. destruct st as [vs s]. reflexivity. Qed.
+
+    Lemma fst_untree st v : fst (untree_edge_upd' st v) = fst st.
+    Proof. destruct st as [vs s]. reflexivity. Qed.
+
+    Lemma dfs_fold_state_incl root st0 st p dun g :
+      dfs_fold_state root st0 st p dun g -> incl p (fst st).
+    Proof.
+      intros H. induction H.
+      - rewrite fst_tree. intros y [->|[]]. left. reflexivity.
+      - rewrite fst_tree. intros y [->|Hy];
+          [left; reflexivity | right; apply IHdfs_fold_state; exact Hy].
+      - rewrite fst_untree. exact IHdfs_fold_state.
+      - intros y Hy. apply IHdfs_fold_state. right. exact Hy.
+    Qed.
+
     Lemma dfs_fold'_S g n st v :
       dfs_fold' g (S n) st v =
         if already_seen st v then untree_edge_upd' st v
@@ -117,6 +211,86 @@ Section __.
       dfs_fold' g 0 st v =
         if already_seen st v then untree_edge_upd' st v else st.
     Proof. reflexivity. Qed.
+
+    Lemma dfs_fold_list_mono g n :
+      forall ws st x,
+        already_seen st x = true ->
+        already_seen (fold_left (dfs_fold' g n) ws st) x = true.
+    Proof.
+      induction n as [|n' IHn]; induction ws as [|w ws IHws];
+        intros st x Hx; try exact Hx; cbn [fold_left]; apply IHws; cbn [dfs_fold'].
+      - destruct (already_seen st w); [rewrite already_seen_untree|]; exact Hx.
+      - destruct (already_seen st w) eqn:E; [rewrite already_seen_untree; exact Hx|].
+        apply IHn. rewrite already_seen_tree, Hx, Bool.orb_true_r. reflexivity.
+    Qed.
+
+    Lemma dfs_fold'_mono g n st v x :
+      already_seen st x = true -> already_seen (dfs_fold' g n st v) x = true.
+    Proof.
+      intros Hx. destruct n as [|n'].
+      - rewrite dfs_fold'_O. destruct (already_seen st v);
+          [rewrite already_seen_untree|]; exact Hx.
+      - rewrite dfs_fold'_S. destruct (already_seen st v);
+          [rewrite already_seen_untree; exact Hx|].
+        apply dfs_fold_list_mono.
+        rewrite already_seen_tree, Hx, Bool.orb_true_r. reflexivity.
+    Qed.
+
+    Lemma dfs_fold'_incl g n st v : incl (fst st) (fst (dfs_fold' g n st v)).
+    Proof.
+      intros y Hy. rewrite <- already_seen_iff. apply dfs_fold'_mono.
+      rewrite already_seen_iff. exact Hy.
+    Qed.
+
+    Lemma dfs_fold_list_O_fst g ws st :
+      fst (fold_left (dfs_fold' g 0) ws st) = fst st.
+    Proof.
+      revert st. induction ws as [|w ws IHws]; intros st; [reflexivity|].
+      cbn [fold_left]. rewrite IHws. cbn [dfs_fold'].
+      destruct (already_seen st w); [destruct st as [vs s]; reflexivity | reflexivity].
+    Qed.
+
+    (* Every vertex the fold newly marks was reached by a DFS descent from some
+       child, staying outside the initial visited set. *)
+    Lemma fold_newly_reach g n :
+      forall ws st u,
+        already_seen (fold_left (dfs_fold' g n) ws st) u = true ->
+        already_seen st u = false ->
+        exists w, In w ws /\ ~ In w (fst st) /\ reach_av g (fst st) n w u.
+    Proof.
+      induction n as [|n' IHn].
+      - intros ws st u Hres Hst. exfalso.
+        rewrite (already_seen_cong _ st u (dfs_fold_list_O_fst g ws st)) in Hres.
+        congruence.
+      - induction ws as [|w ws IHws]; intros st u Hres Hst.
+        + cbn [fold_left] in Hres. congruence.
+        + cbn [fold_left] in Hres.
+          destruct (already_seen (dfs_fold' g (S n') st w) u) eqn:Eu.
+          * destruct (already_seen st w) eqn:Ew.
+            -- exfalso. rewrite dfs_fold'_S, Ew, already_seen_untree in Eu. congruence.
+            -- rewrite dfs_fold'_S, Ew in Eu.
+               destruct (already_seen (tree_edge_upd' st w) u) eqn:Etu.
+               ++ rewrite already_seen_tree, Hst, Bool.orb_false_r in Etu.
+                  assert (u = w) by (destr (eqb u w); congruence). subst u.
+                  exists w. split; [left; reflexivity | split].
+                  ** intro Hin. apply already_seen_iff in Hin. congruence.
+                  ** apply reach_av_refl.
+               ++ destruct (IHn (graph.edges g w) (tree_edge_upd' st w) u Eu Etu)
+                    as (c & Hc & Hcns & Hreach).
+                  rewrite fst_tree in Hcns, Hreach.
+                  exists w. split; [left; reflexivity | split].
+                  ** intro Hin. apply already_seen_iff in Hin. congruence.
+                  ** eapply reach_av_step;
+                       [ exact Hc
+                       | intro Hin; apply Hcns; right; exact Hin
+                       | eapply reach_av_vs_antimono; [| exact Hreach];
+                         intros y Hy; right; exact Hy ].
+          * destruct (IHws (dfs_fold' g (S n') st w) u Hres Eu)
+              as (w' & Hw' & Hw'ns & Hreach).
+            exists w'. split; [right; exact Hw' | split].
+            -- intro Hin. apply Hw'ns. apply dfs_fold'_incl. exact Hin.
+            -- eapply reach_av_vs_antimono; [| exact Hreach]. apply dfs_fold'_incl.
+    Qed.
 
     (* explored edges only leave already-visited vertices *)
     Definition seen_closed (st : state') g :=
@@ -496,6 +670,77 @@ Section __.
           * exact Htgt2.
     Qed.
 
+    (* Same fold, its explored graph described concretely: [g2] is the input
+       [g'] together with the parent's new edges to [ws] and the [g]-edges of
+       every vertex reached from a [ws] child without re-entering [fst st']. *)
+    Lemma dfs_fold_edges_restrict (g : graph) (root : V) (st0 : state')
+          (Hnd : forall x, NoDup (graph.edges g x)) n :
+      forall ws st' p dun' g',
+        dfs_fold_state root st0 st' p dun' g' ->
+        already_seen st' (hd root p) = true ->
+        seen_closed st' g' ->
+        (forall w, In w ws -> ~ graph_edge g' (hd root p) w) ->
+        NoDup ws ->
+        (forall x b, graph_edge g' x b -> graph_edge g x b) ->
+        (forall w, In w ws -> graph_edge g (hd root p) w) ->
+        (ws <> [] -> unseen_count g st' < n) ->
+        (forall u b, already_seen st' u = true -> ~ In u p -> graph_edge g u b ->
+                     graph_edge g' u b) ->
+        (forall u b, graph_edge g' u b -> already_seen st' b = true) ->
+        exists dun2 g2,
+          dfs_fold_state root st0 (fold_left (dfs_fold' g n) ws st') p dun2 g2 /\
+          (forall x, already_seen st' x = true ->
+                     already_seen (fold_left (dfs_fold' g n) ws st') x = true) /\
+          seen_closed (fold_left (dfs_fold' g n) ws st') g2 /\
+          (forall u x, graph_edge g2 u x <->
+             graph_edge g' u x
+             \/ (u = hd root p /\ In x ws)
+             \/ (graph_edge g u x /\
+                 exists w, In w ws /\ already_seen st' w = false
+                                   /\ reach_av g (fst st') n w u)) /\
+          (forall u b, already_seen (fold_left (dfs_fold' g n) ws st') u = true ->
+                       ~ In u p -> graph_edge g u b -> graph_edge g2 u b) /\
+          (forall u b, graph_edge g2 u b ->
+                       already_seen (fold_left (dfs_fold' g n) ws st') b = true).
+    Proof.
+      intros ws st' p dun' g' Hstate Htop HI Hfr Hnodup Hg'real Hwsreal Hfuel HAe Htgtpre.
+      destruct (dfs_fold_edges_sound g root st0 Hnd n ws st' p dun' g'
+                  Hstate Htop HI Hfr Hnodup Hg'real Hwsreal Hfuel HAe Htgtpre)
+        as (dun2 & g2 & Hstate2 & Hmono2 & Hclosed2 & H4 & H5 & H6 & H7 & H8 & H9 & H10).
+      exists dun2, g2.
+      set (R := fold_left (dfs_fold' g n) ws st') in *.
+      ssplit; try assumption.
+      intros u x. split.
+      - intros Hux. destr (eqb u (hd root p)).
+        + destruct (H6 x Hux) as [Hg'|Hin];
+            [left; exact Hg' | right; left; split; [reflexivity | exact Hin]].
+        + destruct (already_seen st' u) eqn:Esu.
+          * left. apply (H5 u x Esu ltac:(assumption) Hux).
+          * right. right. split; [apply H7; exact Hux|].
+            destruct (fold_newly_reach g n ws st' u (Hclosed2 u x Hux) Esu)
+              as (w & Hw & Hwns & Hreach).
+            exists w. split; [exact Hw | split; [| exact Hreach]].
+            destruct (already_seen st' w) eqn:Ew; [|reflexivity].
+            exfalso. apply Hwns. apply already_seen_iff. exact Ew.
+      - intros [Hg' | [[Hue Hin] | (Hgux & w & Hw & Hwns & Hreach)]].
+        + apply H4. exact Hg'.
+        + subst u. apply H8. exact Hin.
+        + assert (Hincl : incl p (fst st'))
+            by exact (dfs_fold_state_incl root st0 st' p dun' g' Hstate).
+          assert (Hwns' : ~ In w (fst st'))
+            by (intro Hin; apply already_seen_iff in Hin; congruence).
+          assert (Hwseen : already_seen R w = true) by exact (H10 (hd root p) w (H8 w Hw)).
+          assert (Hclos : forall z b, already_seen R z = true -> ~ In z p ->
+                            graph_edge g z b -> already_seen R b = true)
+            by (intros z b Hz Hzp Hzb; exact (H10 z b (H9 z b Hz Hzp Hzb))).
+          assert (Hu_seen : already_seen R u = true)
+            by exact (reach_av_seen R p (fst st') g n w u Hincl Hclos Hreach Hwseen Hwns').
+          assert (Hunp : ~ In u p)
+            by (intro Hup; apply (reach_av_dst g (fst st') n w u Hreach Hwns');
+                apply Hincl; exact Hup).
+          apply H9; [exact Hu_seen | exact Hunp | exact Hgux].
+    Qed.
+
     (* Top-level correctness: with all edge sources reachable from [root] and
        duplicate-free adjacency lists, [dfs_fold g st0 root] is a reachable
        configuration of [dfs_fold_state] whose explored graph is exactly [g]. *)
@@ -545,14 +790,24 @@ Section __.
                         already_seen (tree_edge_upd' ([], st0) root) b = true).
       { intros u b Hub. exfalso. cbv [graph_edge] in Hub.
         rewrite graph.edges_empty in Hub. exact Hub. }
-      destruct (dfs_fold_edges_sound g root ([], st0) Hnd (length (graph.sources g))
+      destruct (dfs_fold_edges_restrict g root ([], st0) Hnd (length (graph.sources g))
                   (graph.edges g root) (tree_edge_upd' ([], st0) root) (root :: []) []
                   graph.empty
                   (dfs_init root ([], st0)) Htop2 Hclosed2 Hfr2 (Hnd root)
                   Hereal Hwsreal Hfuel HAe0 Htgt0)
-        as (dun2 & g2 & Hstate2 & Hmono2 & _ & _ & _ & _ & Hreal2 & Hwsedge2 & HAe22 & Htgt2).
+        as (dun2 & g2 & Hstate2 & Hmono2 & _ & HG & HAe22 & Htgt2).
       set (R := fold_left (dfs_fold' g (length (graph.sources g)))
                           (graph.edges g root) (tree_edge_upd' ([], st0) root)) in *.
+      assert (Hwsedge2 : forall w, In w (graph.edges g root) ->
+                           graph_edge g2 (hd root (root :: [])) w).
+      { intros w Hin. cbn [hd]. apply (proj2 (HG root w)).
+        right. left. split; [reflexivity | exact Hin]. }
+      assert (Hreal2 : forall u x, graph_edge g2 u x -> graph_edge g u x).
+      { intros u x Hux. apply HG in Hux.
+        destruct Hux as [Hemp | [[-> Hin] | (Hgux & _)]].
+        - cbv [graph_edge] in Hemp. rewrite graph.edges_empty in Hemp. destruct Hemp.
+        - exact Hin.
+        - exact Hgux. }
       assert (Hrootvis : already_seen R root = true).
       { apply Hmono2. rewrite already_seen_tree, eqb_reflV. reflexivity. }
       assert (Hclose : forall u b, already_seen R u = true -> graph_edge g u b ->
