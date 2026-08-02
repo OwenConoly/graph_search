@@ -87,7 +87,7 @@ Section __.
     End with_graph.
 
     Inductive dfs_fold_state (root : V) (st0 : state') : state' -> list V (*current path*)-> list V (*finished vertices*) -> graph (*explored edges*) -> Prop :=
-    | dfs_init : dfs_fold_state _ _ st0 [] [] map.empty
+    | dfs_init : dfs_fold_state _ _ (tree_edge_upd' st0 root) [root] [] map.empty
     | dfs_tree_edge st p dun g v :
       ~graph_edge g (hd root p) v ->
       dfs_fold_state _ _ st p dun g ->
@@ -406,11 +406,10 @@ Section __.
 
     (* Top-level forward soundness: the state computed by [dfs_fold g st0 root]
        is a reachable configuration of [dfs_fold_state].  Adjacency lists are
-       assumed duplicate-free, and [root] has no self-loop (the initial push of
-       [root] would otherwise collide with a self-edge). *)
+       assumed duplicate-free; [dfs_init] enters [root] without recording an
+       edge, so no self-loop hypothesis is needed. *)
     Theorem dfs_fold_sound (g : graph) (root : V) (st0 : state)
-            (Hnd : forall x, NoDup (edges g x))
-            (Hroot : ~ In root (edges g root)) :
+            (Hnd : forall x, NoDup (edges g x)) :
       exists p dun g2,
         dfs_fold_state root ([], st0) (dfs_fold g st0 root) p dun g2.
     Proof.
@@ -420,36 +419,20 @@ Section __.
                                  (edges g root) (tree_edge_upd' ([], st0) root)).
       { cbv [dfs_fold]. rewrite dfs_fold'_S, Hseen. reflexivity. }
       rewrite Hres.
-      assert (Hpush : dfs_fold_state root ([], st0) (tree_edge_upd' ([], st0) root)
-                        (root :: []) [] (put_edge map.empty (hd root []) root)).
-      { apply dfs_tree_edge.
-        - intro Hc. cbv [graph_edge edges get_or] in Hc.
-          rewrite map.get_empty in Hc. exact Hc.
-        - apply dfs_init.
-        - exact Hseen. }
       assert (Htop2 : already_seen (tree_edge_upd' ([], st0) root)
                         (hd root (root :: [])) = true).
       { cbn [hd]. rewrite already_seen_tree, eqb_reflV. reflexivity. }
-      assert (Hclosed2 : seen_closed (tree_edge_upd' ([], st0) root)
-                           (put_edge map.empty (hd root []) root)).
-      { intros x b Hxb. apply graph_edge_put_edge in Hxb.
-        rewrite already_seen_tree. apply Bool.orb_true_iff.
-        destruct Hxb as [[Hx _]|Hxb].
-        - left. subst x. apply eqb_reflV.
-        - exfalso. cbv [graph_edge edges get_or] in Hxb.
-          rewrite map.get_empty in Hxb. exact Hxb. }
+      assert (Hclosed2 : seen_closed (tree_edge_upd' ([], st0) root) map.empty).
+      { intros x b Hxb. exfalso. cbv [graph_edge edges get_or] in Hxb.
+        rewrite map.get_empty in Hxb. exact Hxb. }
       assert (Hfr2 : forall w, In w (edges g root) ->
-                       ~ graph_edge (put_edge map.empty (hd root []) root)
-                           (hd root (root :: [])) w).
-      { intros w Hw Hc. apply graph_edge_put_edge in Hc. cbn [hd] in Hc.
-        destruct Hc as [[_ Hwr]|Hc].
-        - subst w. exact (Hroot Hw).
-        - exfalso. cbv [graph_edge edges get_or] in Hc.
-          rewrite map.get_empty in Hc. exact Hc. }
+                       ~ graph_edge map.empty (hd root (root :: [])) w).
+      { intros w _ Hc. cbv [graph_edge edges get_or] in Hc.
+        rewrite map.get_empty in Hc. exact Hc. }
       destruct (dfs_fold_edges_sound g root ([], st0) Hnd (length (map.keys g))
                   (edges g root) (tree_edge_upd' ([], st0) root) (root :: []) []
-                  (put_edge map.empty (hd root []) root)
-                  Hpush Htop2 Hclosed2 Hfr2 (Hnd root))
+                  map.empty
+                  (dfs_init root ([], st0)) Htop2 Hclosed2 Hfr2 (Hnd root))
         as (dun2 & g2 & Hstate2 & _).
       exists (root :: []), dun2, g2. exact Hstate2.
     Qed.
