@@ -2,4 +2,5 @@
 
 -Q src GraphSearch
 
+src/GraphInterface.v
 src/DFS.v
