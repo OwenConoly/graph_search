@@ -16,6 +16,18 @@ Proof.
   cbn [fold_left]. apply IH; [apply Hstep; exact HP | exact Hstep].
 Qed.
 
+(* Binary version: relate two folds over the same list with different steps. *)
+Lemma fold_left_invariant2 {A B C} (P : list C -> A -> B -> Prop)
+      (f : A -> C -> A) (h : B -> C -> B) :
+  forall l a b,
+    P l a b ->
+    (forall a' b' c l', P (c :: l') a' b' -> P l' (f a' c) (h b' c)) ->
+    P [] (fold_left f l a) (fold_left h l b).
+Proof.
+  induction l as [|c l' IH]; intros a b HP Hstep; [exact HP|].
+  cbn [fold_left]. apply IH; [apply Hstep; exact HP | exact Hstep].
+Qed.
+
 Section __.
   Context {V : Type}.
 
@@ -276,6 +288,7 @@ Section __.
   Local Notation dfs_fold_state0 := (dfs_fold_state untree_edge_upd tree_edge_upd finish).
 
   Lemma dfs_fold_sound1 root vs n st0 g :
+    already_seen (vs, st0) root = false ->
     let '(_, (_, g_acc)) := graph_accumulator g n (vs, ([], graph.empty)) root in
     dfs_fold_state0 root
       (edge_upd'0 (vs, st0) root)
