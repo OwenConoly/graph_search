@@ -64,7 +64,7 @@ Section __.
     End with_graph.
 
     Inductive dfs_fold_state (root : V) (st0 : state') : state' -> list V (*current path*)-> graph (*explored edges*) -> Prop :=
-    | dfs_init : dfs_fold_state _ _ st0 [root] graph.empty
+    | dfs_init : dfs_fold_state _ _ st0 [] graph.empty
     | dfs_tree_edge st p g v :
       ~graph_edge g (hd root p) v ->
       dfs_fold_state _ _ st p g ->
@@ -79,10 +79,29 @@ Section __.
       dfs_fold_state _ _ st (u :: p) g ->
       dfs_fold_state _ _ st p g.
 
+    Lemma graph_union_empty_r (g : graph) :
+      graph.union g graph.empty = g.
+    Proof. Admitted.
+
+    Lemma graph_union_put_r (g1 g2 : graph) u v :
+      graph.union g1 (graph.put g2 u v) = graph.put (graph.union g1 g2) u v.
+    Proof. Admitted.
+
     Lemma dfs_fold_state_trans root st0 st st' p p' g g' u :
       dfs_fold_state root st0 st (u :: p) g ->
       dfs_fold_state u st st' p' g' ->
-      dfs_fold_state root st0 st' (p' ++ p) (graph.union g g'). *)
+      dfs_fold_state root st0 st' (p' ++ u :: p) (graph.union g g').
+    Proof.
+      intros H. induction 1.
+      - simpl. rewrite graph_union_empty_r. assumption.
+      - simpl. rewrite graph_union_put_r.
+
+        Print dfs_fold_state.
+
+        econstructor. replace (graph.union g _) with graph.empty by admit.
+      remember (u :: p) as p0 eqn:E. intros H.
+      revert u p E.
+
 
     Context {ok : graph.ok graph}.
     Context {eqb_ok : Eqb_ok eqbV}.
