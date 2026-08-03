@@ -63,24 +63,43 @@ Section __.
       Definition dfs_fold st0 := dfs_fold' (S (length (graph.sources g))) ([], st0).
     End with_graph.
 
-    Inductive dfs_fold_state (root : V) (st0 : state') : state' -> list V (*current path*)-> list V (*finished vertices*) -> graph (*explored edges*) -> Prop :=
-    | dfs_init : dfs_fold_state _ _ (tree_edge_upd' st0 root) [root] [] graph.empty
-    | dfs_tree_edge st p dun g v :
+    Inductive dfs_fold_state (root : V) (st0 : state') : state' -> list V (*current path*)-> graph (*explored edges*) -> Prop :=
+    | dfs_init : dfs_fold_state _ _ (tree_edge_upd' st0 root) [root] graph.empty
+    | dfs_tree_edge st p g v :
       ~graph_edge g (hd root p) v ->
-      dfs_fold_state _ _ st p dun g ->
+      dfs_fold_state _ _ st p g ->
       already_seen st v = false ->
-      dfs_fold_state _ _ (tree_edge_upd' st v) (v :: p) dun (graph.put g (hd root p) v)
-    | dfs_untree_edge st p dun g v :
-      dfs_fold_state _ _ st p dun g ->
+      dfs_fold_state _ _ (tree_edge_upd' st v) (v :: p) (graph.put g (hd root p) v)
+    | dfs_untree_edge st p g v :
+      dfs_fold_state _ _ st p g ->
       ~graph_edge g (hd root p) v ->
       already_seen st v = true ->
-      dfs_fold_state _ _ (untree_edge_upd' st v) p dun (graph.put g (hd root p) v)
-    | dfs_finish st u p dun g :
-      dfs_fold_state _ _ st (u :: p) dun g ->
-      dfs_fold_state _ _ st p (u :: dun) g.
+      dfs_fold_state _ _ (untree_edge_upd' st v) p (graph.put g (hd root p) v)
+    | dfs_finish st u p g :
+      dfs_fold_state _ _ st (u :: p) g ->
+      dfs_fold_state _ _ st p g.
 
     Context {ok : graph.ok graph}.
     Context {eqb_ok : Eqb_ok eqbV}.
+
+    Definition restriction root vs n g g' :=
+      forall u v, graph_edge g' u v <-> graph_edge g u v /\ (exists p, path_to (graph_edge g) root p u /\ length p <= n /\ Forall (fun w => ~In w vs) p).
+
+    From coqutil Require Import Tactics.fwd.
+    Lemma dfs_fold_sound root vs n st0 g :
+      set_contains vs root = false ->
+      exists g' p,
+        dfs_fold_state root (vs, st0) (dfs_fold' g n (vs, st0) root) p g' /\
+          restriction root vs n g g'.
+    Proof.
+      revert root vs st0. induction n.
+      - intros. simpl. rewrite H. do 3 eexists. split.
+        { apply dfs_init. apply dfs_ (st := (vs, st0)). constructor. simpl.
+
+        exists graph.empty. exists [], []. split.
+        + cbv [restriction]. intros. cbv [graph_edge]. rewrite graph.edges_empty.
+          simpl. split; try contradiction. intros. fwd.
+
 
     (* [u] is reachable from [a] by a DFS descent of depth <= [len] that only
        ever steps into vertices outside [vs].  The root [a] itself may be in

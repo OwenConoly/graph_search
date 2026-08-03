@@ -25,6 +25,7 @@ Class ok {vertex} {graph : graph vertex} : Prop := {
     edges_remove_same : forall g u v, ~In v (edges (remove g u v) u);
     edges_remove_diff : forall g u u' v v', (u, v) <> (u', v') -> In v' (edges (remove g u v) u') <-> In v' (edges g u');
     sources_spec : forall g u, In u (sources g) <-> edges g u <> nil;
+    edges_NoDup : forall g u, NoDup (edges g u);
   }.
 Arguments ok {_} _.
 End graph.
