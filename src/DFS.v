@@ -287,13 +287,6 @@ Section __.
 
   Definition graph_accumulator := dfs_fold' untree_edge_accumulate tree_edge_accumulate finish_accumulate.
 
-  Check graph_accumulator.
-  Lemma graph_accumulator_union g n vs p g0 root :
-    let '(vs'', (p'', g'')) := graph_accumulator g n (vs, (p, g0)) root in
-    let '(vs', (p', g')) := graph_accumulator g n (vs, (p, graph.empty)) root in
-    vs'' = vs' /\ p'' = p' /\ g'' = graph.union g0 g'.
-  Proof. Admitted.
-
   Lemma accum_path_inv g n vs path G w :
     fst (snd (graph_accumulator g n (vs, (path, G)) w)) = path.
   Proof.
@@ -347,6 +340,20 @@ Section __.
           cbn [finish' finish_accumulate fst snd]. reflexivity. }
         rewrite Htree, (fold_left_hom _ (gframe gacc) _ (fun a b => IH gacc a b)).
         apply Hfin.
+  Qed.
+
+  Lemma graph_accumulator_union g n vs p g0 root :
+    let '(vs'', (p'', g'')) := graph_accumulator g n (vs, (p, g0)) root in
+    let '(vs', (p', g')) := graph_accumulator g n (vs, (p, graph.empty)) root in
+    vs'' = vs' /\ p'' = p' /\ g'' = graph.union g0 g'.
+  Proof.
+    assert (Hgf : gframe g0 (vs, (p, graph.empty)) = (vs, (p, g0))).
+    { unfold gframe. cbn [fst snd]. rewrite graph.union_empty_r. reflexivity. }
+    pose proof (accum_frame g n g0 (vs, (p, graph.empty)) root) as H.
+    rewrite Hgf in H.
+    destruct (graph_accumulator g n (vs, (p, g0)) root) as [vs'' [p'' g'']].
+    destruct (graph_accumulator g n (vs, (p, graph.empty)) root) as [vs' [p' g']].
+    unfold gframe in H. cbn [fst snd] in H. injection H as -> -> ->. auto.
   Qed.
 
   Context {state}
