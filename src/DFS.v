@@ -90,6 +90,14 @@ Section __.
         tree_edge_upd' st v.
 
     From coqutil Require Import Tactics.fwd.
+
+    Lemma set_contains_iff_In vs v :
+      set_contains vs v = true <-> In v vs.
+    Proof.
+      unfold set_contains. symmetry.
+      apply (existsb_eqb_in (aeqb_dec := @eqb_boolspec V eqbV eqb_ok)).
+    Qed.
+
     Lemma dfs_fold_sound root vs n st0 g :
       (forall p v,
           path_to (graph_edge g) root p v ->
@@ -100,24 +108,21 @@ Section __.
           restriction root vs g g'.
     Proof.
       revert root vs st0. induction n.
-      - intros root vs st0 H.
-        assert (Hmem : In root vs <-> already_seen (vs, st0) root = true)
-          by exact (existsb_eqb_in (aeqb_dec := @eqb_boolspec V eqbV eqb_ok) root vs).
-        destruct (already_seen (vs, st0) root) eqn:E.
-        + cbv [edge_upd']. rewrite E. cbn [dfs_fold']. rewrite E.
-          exists graph.empty, [root]. split.
-          * apply dfs_init.
+      - intros root vs st0 H. simpl. cbv [edge_upd']. simpl.
+        destruct (set_contains vs root) eqn:E.
+        + exists graph.empty, [root]. split.
+          * constructor.
           * cbv [restriction graph_edge]. intros u v.
             rewrite graph.edges_empty. cbn [In].
             split; [intros []|].
             intros (_ & p & _ & Hf).
-            apply (Forall_inv Hf). apply Hmem. reflexivity.
+            apply (Forall_inv Hf). apply set_contains_iff_In. exact E.
         + exfalso.
           enough (length (@nil V) < 0) by lia.
           apply (H [] root).
           * unfold path_to. split; [exact I | reflexivity].
           * constructor.
-            -- intro Hin. apply (proj1 Hmem) in Hin. congruence.
+            -- intro Hin. apply set_contains_iff_In in Hin. congruence.
             -- constructor.
       - intros. simpl. cbv [edge_upd' already_seen].
         destruct (set_contains vs root) eqn:E.
@@ -125,6 +130,8 @@ Section __.
           { constructor. }
           cbv [restriction]. cbv [graph_edge]. intros. rewrite graph.edges_empty.
           simpl. split; [contradiction|]. intros. fwd.
+          apply set_contains_iff_In in E. auto.
+        +
     Admitted.
 
   End fold.
