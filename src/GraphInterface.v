@@ -20,10 +20,8 @@ Local Hint Mode graph - : typeclass_instances.
 Class ok {vertex} {graph : graph vertex} : Prop := {
     graph_ext : forall g1 g2, (forall v, same_set (edges g1 v) (edges g2 v)) -> g1 = g2;
     edges_empty : forall v, edges empty v = [];
-    edges_put_same : forall g u v, In v (edges (put g u v) u);
-    edges_put_diff : forall g u u' v v', (u, v) <> (u', v') -> In v' (edges (put g u v) u') <-> In v' (edges g u');
-    edges_remove_same : forall g u v, ~In v (edges (remove g u v) u);
-    edges_remove_diff : forall g u u' v v', (u, v) <> (u', v') -> In v' (edges (remove g u v) u') <-> In v' (edges g u');
+    edges_put : forall g u u' v v', In v' (edges (put g u v) u') <-> In v' (edges g u') \/ u = u' /\ v = v';
+    edges_remove : forall g u v u' v', In v' (edges (remove g u v) u') <-> In v' (edges g u') /\ (u <> u' \/ v <> v');
     sources_spec : forall g u, In u (sources g) <-> edges g u <> nil;
     edges_NoDup : forall g u, NoDup (edges g u);
   }.
