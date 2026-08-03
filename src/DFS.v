@@ -79,6 +79,12 @@ Section __.
       dfs_fold_state _ _ st (u :: p) g ->
       dfs_fold_state _ _ st p g.
 
+    (*define graph.put_edges, graph.union.*)
+    Fail Lemma dfs_fold_state_trans root st0 st st' p p' g g' u :
+      dfs_fold_state root st0 st (u :: p) g ->
+      dfs_fold_state u st st' p' g' ->
+      dfs_fold_state root st0 st p' (graph.union g g').
+
     Context {ok : graph.ok graph}.
     Context {eqb_ok : Eqb_ok eqbV}.
 
@@ -103,15 +109,15 @@ Section __.
           path_to (graph_edge g) root p v ->
           Forall (fun w => ~In w vs) (root :: p) ->
           length p < n) ->
-      exists g' p,
-        dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) p g' /\
+      exists g',
+        dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) [] g' /\
           restriction root vs g g'.
     Proof.
       revert root vs st0. induction n.
       - intros root vs st0 H. simpl. cbv [edge_upd']. simpl.
         destruct (set_contains vs root) eqn:E.
-        + exists graph.empty, [root]. split.
-          * constructor.
+        + exists graph.empty. split.
+          * eapply dfs_finish. constructor.
           * cbv [restriction graph_edge]. intros u v.
             rewrite graph.edges_empty. cbn [In].
             split; [intros []|].
@@ -126,12 +132,15 @@ Section __.
             -- constructor.
       - intros. simpl. cbv [edge_upd' already_seen].
         destruct (set_contains vs root) eqn:E.
-        + do 2 eexists. split.
-          { constructor. }
+        + eexists. split.
+          { eapply dfs_finish. constructor. }
           cbv [restriction]. cbv [graph_edge]. intros. rewrite graph.edges_empty.
           simpl. split; [contradiction|]. intros. fwd.
           apply set_contains_iff_In in E. auto.
-        +
+        + destruct (graph.edges g root).
+          -- admit.
+          -- destruct l. 2: admit. simpl. eexists. split.
+             ++ econstructor.
     Admitted.
 
   End fold.
