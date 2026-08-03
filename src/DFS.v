@@ -85,12 +85,12 @@ Section __.
       ~graph_edge g u v ->
       dfs_fold_state _ _ st (u :: p) g ->
       already_seen st v = false ->
-      dfs_fold_state _ _ (tree_edge_upd' st v) (v :: p) (graph.put g u v)
+      dfs_fold_state _ _ (tree_edge_upd' st v) (v :: u :: p) (graph.put g u v)
     | dfs_untree_edge st u p g v :
       dfs_fold_state _ _ st (u :: p) g ->
       ~graph_edge g u v ->
       already_seen st v = true ->
-      dfs_fold_state _ _ (untree_edge_upd' st v) p (graph.put g u v)
+      dfs_fold_state _ _ (untree_edge_upd' st v) (u :: p) (graph.put g u v)
     | dfs_finish st u p g :
       dfs_fold_state _ _ st (u :: p) g ->
       dfs_fold_state _ _ (finish' st u) p g.
@@ -130,8 +130,8 @@ Section __.
       already_seen st0 y = true ->
       already_seen st y = true.
     Proof.
-      induction 1 as [ | st2 p0 g0 v Hne Hrec IH Hseen
-                       | st2 p0 g0 v Hrec IH Hne Hseen
+      induction 1 as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
+                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
                        | st2 u2 p0 g0 Hrec IH ]; intro Hy.
       - exact Hy.
       - apply already_seen_tree_edge_upd. apply IH. exact Hy.
@@ -143,8 +143,8 @@ Section __.
       dfs_fold_state root st0 st p g -> graph_edge g x y -> already_seen st y = true.
     Proof.
       intro H. revert x y.
-      induction H as [ | st2 p0 g0 v Hne Hrec IH Hseen
-                       | st2 p0 g0 v Hrec IH Hne Hseen
+      induction H as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
+                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
                        | st2 u2 p0 g0 Hrec IH ]; intros x y He; cbv [graph_edge] in He.
       - rewrite graph.edges_empty in He. destruct He.
       - rewrite graph.edges_put in He. destruct He as [Hold | [_ Hvy]].
@@ -162,8 +162,8 @@ Section __.
       dfs_fold_state root st0 st p g -> In z p -> already_seen st z = true.
     Proof.
       intros Hroot H. revert z.
-      induction H as [ | st2 p0 g0 v Hne Hrec IH Hseen
-                       | st2 p0 g0 v Hrec IH Hne Hseen
+      induction H as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
+                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
                        | st2 u2 p0 g0 Hrec IH ]; intros z Hz.
       - destruct Hz as [<- | []]. exact Hroot.
       - destruct Hz as [<- | Hz].
@@ -177,8 +177,8 @@ Section __.
       dfs_fold_state root st0 st p g -> In z p -> z = root \/ already_seen st0 z = false.
     Proof.
       intro H. revert z.
-      induction H as [ | st2 p0 g0 v Hne Hrec IH Hseen
-                       | st2 p0 g0 v Hrec IH Hne Hseen
+      induction H as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
+                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
                        | st2 u2 p0 g0 Hrec IH ]; intros z Hz.
       - destruct Hz as [<- | []]. left. reflexivity.
       - destruct Hz as [<- | Hz].
@@ -194,23 +194,19 @@ Section __.
       dfs_fold_state root st0 st p g -> graph_edge g x y -> already_seen st x = true.
     Proof.
       intros Hroot H. revert x y.
-      induction H as [ | st2 p0 g0 v Hne Hrec IH Hseen
-                       | st2 p0 g0 v Hrec IH Hne Hseen
+      induction H as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
+                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
                        | st2 u2 p0 g0 Hrec IH ]; intros x y He; cbv [graph_edge] in He.
       - rewrite graph.edges_empty in He. destruct He.
       - rewrite graph.edges_put in He. destruct He as [Hold | [Hxhd _]].
         + apply already_seen_tree_edge_upd. apply (IH x y). exact Hold.
         + subst x. apply already_seen_tree_edge_upd.
-          destruct p0 as [|z rest]; cbn [hd];
-            [ exact (already_seen_mono _ _ _ _ _ _ Hrec Hroot)
-            | apply (dfs_path_seen _ _ _ _ _ _ Hroot Hrec); apply in_eq ].
+          apply (dfs_path_seen _ _ _ _ _ _ Hroot Hrec). apply in_eq.
       - rewrite graph.edges_put in He. rewrite already_seen_untree_edge_upd.
         destruct He as [Hold | [Hxhd _]].
         + apply (IH x y). exact Hold.
         + subst x.
-          destruct p0 as [|z rest]; cbn [hd];
-            [ exact (already_seen_mono _ _ _ _ _ _ Hrec Hroot)
-            | apply (dfs_path_seen _ _ _ _ _ _ Hroot Hrec); apply in_eq ].
+          apply (dfs_path_seen _ _ _ _ _ _ Hroot Hrec). apply in_eq.
       - rewrite already_seen_finish'. apply (IH x y). exact He.
     Qed.
 
@@ -266,8 +262,8 @@ Section __.
       dfs_fold_state root st0 st' (p' ++ u :: p) (graph.union g g').
     Proof.
       intros H1 Hroot Hedges H2.
-      induction H2 as [ | st2 p0 g0 v Hne Hrec IH Hseen
-                        | st2 p0 g0 v Hrec IH Hne Hseen
+      induction H2 as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
+                        | st2 u0 p0 g0 v Hrec IH Hne Hseen
                         | st2 u2 p0 g0 Hrec IH ].
       - cbn [app]. rewrite graph.union_empty_r. exact H1.
       - assert (Hhd : hd root (p0 ++ u :: p) = hd u p0) by (destruct p0; reflexivity).
@@ -307,8 +303,8 @@ Section __.
       x = root \/ already_seen st0 x = false.
     Proof.
       intro H. revert x y.
-      induction H as [ | st2 p0 g0 v Hne Hrec IH Hseen
-                       | st2 p0 g0 v Hrec IH Hne Hseen
+      induction H as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
+                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
                        | st2 u2 p0 g0 Hrec IH ]; intros x y He; cbv [graph_edge] in He.
       - rewrite graph.edges_empty in He. destruct He.
       - rewrite graph.edges_put in He. destruct He as [Hold | [Hxhd _]].
