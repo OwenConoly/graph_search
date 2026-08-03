@@ -231,6 +231,24 @@ Section __.
       - rewrite already_seen_finish'. apply (IH x y). exact He.
     Qed.
 
+    Lemma dfs_source_init root st0 st p g x y :
+      dfs_fold_state root st0 st p g -> graph_edge g x y ->
+      x = root \/ already_seen st0 x = false.
+    Proof.
+      intro H. revert x y.
+      induction H as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
+                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
+                       | st2 u2 p0 g0 Hrec IH ]; intros x y He; cbv [graph_edge] in He.
+      - rewrite graph.edges_empty in He. destruct He.
+      - rewrite graph.edges_put in He. destruct He as [Hold | [Hxu0 _]].
+        + apply (IH x y). exact Hold.
+        + subst x. apply (dfs_path_unseen _ _ _ _ _ _ Hrec). apply in_eq.
+      - rewrite graph.edges_put in He. destruct He as [Hold | [Hxu0 _]].
+        + apply (IH x y). exact Hold.
+        + subst x. apply (dfs_path_unseen _ _ _ _ _ _ Hrec). apply in_eq.
+      - apply (IH x y). exact He.
+    Qed.
+
     Lemma dfs_fold_state_trans root st0 st st' p p' g g' u :
       dfs_fold_state root st0 st (u :: p) g ->
       already_seen st0 root = true ->
@@ -264,6 +282,43 @@ Section __.
     Qed.
 
   End fold.
+
+  (* The visited-set (fst) evolves independently of the state payload and ops. *)
+  Lemma dfs_fold'_fst {S1 S2}
+    (u1 t1 f1 : S1 -> list V -> V -> S1) (u2 t2 f2 : S2 -> list V -> V -> S2) g m :
+    forall (st1 : list V * S1) (st2 : list V * S2) w,
+      fst st1 = fst st2 ->
+      fst (dfs_fold' u1 t1 f1 g m st1 w) = fst (dfs_fold' u2 t2 f2 g m st2 w).
+  Proof.
+    induction m as [|m' IH]; intros st1 st2 w Hfst;
+      destruct st1 as [vs1 s1], st2 as [vs2 s2]; cbn [fst] in Hfst; subst vs2;
+      cbn [dfs_fold' already_seen].
+    - destruct (set_contains vs1 w); reflexivity.
+    - destruct (set_contains vs1 w); [reflexivity|].
+      assert (Hfold : fst (fold_left (dfs_fold' u1 t1 f1 g m') (graph.edges g w)
+                            (tree_edge_upd' t1 (vs1, s1) w))
+                    = fst (fold_left (dfs_fold' u2 t2 f2 g m') (graph.edges g w)
+                            (tree_edge_upd' t2 (vs1, s2) w))).
+      { apply (fold_left_invariant2 (fun _ a b => fst a = fst b)).
+        - reflexivity.
+        - intros a b c l' Hab. apply IH. exact Hab. }
+      revert Hfold.
+      destruct (fold_left (dfs_fold' u1 t1 f1 g m') (graph.edges g w)
+                  (tree_edge_upd' t1 (vs1, s1) w)) as [vA sA].
+      destruct (fold_left (dfs_fold' u2 t2 f2 g m') (graph.edges g w)
+                  (tree_edge_upd' t2 (vs1, s2) w)) as [vB sB].
+      cbn [finish' fst]. intro Hfold. exact Hfold.
+  Qed.
+
+  Lemma dfs_fold'_seen {St} (u t f : St -> list V -> V -> St) g n st' v :
+    already_seen st' v = true -> dfs_fold' u t f g n st' v = untree_edge_upd' u st' v.
+  Proof. destruct n; intro H; cbn [dfs_fold']; rewrite H; reflexivity. Qed.
+
+  Lemma dfs_fold'_S {St} (u t f : St -> list V -> V -> St) g n st' v :
+    dfs_fold' u t f g (S n) st' v
+    = if already_seen st' v then untree_edge_upd' u st' v
+      else finish' f (fold_left (dfs_fold' u t f g n) (graph.edges g v) (tree_edge_upd' t st' v)) v.
+  Proof. reflexivity. Qed.
 
   Definition tree_edge_accumulate (path_g: list V * graph) (_ : list V) (cur : V) :=
     let '(path, g) := path_g in
@@ -452,6 +507,7 @@ Section __.
   Local Notation dfs_fold_state0 := (dfs_fold_state untree_edge_upd tree_edge_upd finish).
 
   Lemma dfs_fold_sound1 root vs n st0 g :
+    0 < n ->
     already_seen (vs, st0) root = false ->
     let '(_, (_, g_acc)) := graph_accumulator g n (vs, ([], graph.empty)) root in
     dfs_fold_state0 root
@@ -459,178 +515,143 @@ Section __.
       (dfs_fold'0 g n (vs, st0) root)
       []
       g_acc.
-  Proof. (*TODO*) Admitted.
-
-
-    Lemma dfs_fold'_seen G n st' v :
-      already_seen st' v = true -> dfs_fold' G n st' v = untree_edge_upd' st' v.
-    Proof. destruct n; intro H; cbn [dfs_fold']; rewrite H; reflexivity. Qed.
-
-    Lemma dfs_source_init root st0 st p g x y :
-      dfs_fold_state root st0 st p g -> graph_edge g x y ->
-      x = root \/ already_seen st0 x = false.
-    Proof.
-      intro H. revert x y.
-      induction H as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
-                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
-                       | st2 u2 p0 g0 Hrec IH ]; intros x y He; cbv [graph_edge] in He.
-      - rewrite graph.edges_empty in He. destruct He.
-      - rewrite graph.edges_put in He. destruct He as [Hold | [Hxhd _]].
-        + apply (IH x y). exact Hold.
-        + subst x. destruct p0 as [|z rest]; cbn [hd].
-          * left. reflexivity.
-          * right. apply (dfs_path_unseen _ _ _ _ _ _ Hrec). apply in_eq.
-      - rewrite graph.edges_put in He. destruct He as [Hold | [Hxhd _]].
-        + apply (IH x y). exact Hold.
-        + subst x. destruct p0 as [|z rest]; cbn [hd].
-          * left. reflexivity.
-          * right. apply (dfs_path_unseen _ _ _ _ _ _ Hrec). apply in_eq.
-      - apply (IH x y). exact He.
-    Qed.
-
-    Lemma dfs_fold_child G n' root st_init st_acc g_acc b :
-      already_seen st_init root = true ->
-      dfs_fold_state root st_init st_acc [] g_acc ->
-      ~ graph_edge g_acc root b ->
-      (already_seen st_acc b = false ->
-         exists g_b, dfs_fold_state b (tree_edge_upd' st_acc b) (dfs_fold' G n' st_acc b) [] g_b) ->
-      exists g',
-        dfs_fold_state root st_init (dfs_fold' G n' st_acc b) [] g' /\
-        (forall x, x <> b -> ~ graph_edge g_acc root x -> ~ graph_edge g' root x).
-    Proof.
-      intros Hroot Hstate Hnb Hsub.
-      assert (Hnb' : ~ graph_edge g_acc (hd root []) b) by (cbn [hd]; exact Hnb).
-      destruct (already_seen st_acc b) eqn:Eb.
-      - rewrite (dfs_fold'_seen G n' st_acc b Eb).
-        exists (graph.put g_acc (hd root []) b). split.
-        + apply dfs_untree_edge; assumption.
-        + intros x Hxb Hx Hedge. cbv [graph_edge] in Hedge. cbn [hd] in Hedge.
-          rewrite graph.edges_put in Hedge. destruct Hedge as [Hin | [_ Hbx]].
-          * exact (Hx Hin).
-          * congruence.
-      - destruct (Hsub eq_refl) as [g_b Hb].
-        assert (Hrs : already_seen st_acc root = true) by (eapply already_seen_mono; eassumption).
-        assert (Hrb : root <> b) by (intro Hc; rewrite Hc in Hrs; congruence).
-        assert (Hbedges : graph.edges (graph.put g_acc (hd root []) b) b = []).
-        { cbn [hd].
-          destruct (graph.edges (graph.put g_acc root b) b) as [|w l'] eqn:Ew; [reflexivity|].
-          exfalso.
-          assert (Hin : In w (graph.edges (graph.put g_acc root b) b)) by (rewrite Ew; apply in_eq).
-          rewrite graph.edges_put in Hin. destruct Hin as [Hin | [Hc _]]; [ | exact (Hrb Hc)].
-          pose proof (dfs_source_seen _ _ _ _ _ _ _ Hroot Hstate Hin) as Hcon. congruence. }
-        exists (graph.union (graph.put g_acc (hd root []) b) g_b). split.
-        + eapply dfs_finish.
-          eapply dfs_fold_state_trans with
-            (st := tree_edge_upd' st_acc b) (p := @nil V) (p' := @nil V) (u := b).
-          * apply dfs_tree_edge; assumption.
-          * exact Hroot.
-          * exact Hbedges.
-          * exact Hb.
-        + intros x Hxb Hx Hedge.
-          cbv [graph_edge] in Hedge. rewrite graph.edges_union in Hedge. cbn [hd] in Hedge.
-          destruct Hedge as [Hput | Hgb].
-          * rewrite graph.edges_put in Hput.
-            destruct Hput as [Hin | [_ Hbx]]; [exact (Hx Hin) | congruence].
-          * pose proof (dfs_source_init _ _ _ _ _ _ _ Hb Hgb) as Hsi.
-            destruct Hsi as [Hc | Hun].
-            -- exact (Hrb Hc).
-            -- pose proof (already_seen_tree_edge_upd st_acc b root Hrs) as Ht2. congruence.
-    Qed.
-
-    Lemma dfs_fold_children G n' root st_init L :
-      already_seen st_init root = true ->
-      (forall st_acc b, In b L -> already_seen st_acc b = false ->
-         exists g_b, dfs_fold_state b (tree_edge_upd' st_acc b) (dfs_fold' G n' st_acc b) [] g_b) ->
-      forall st_acc g_acc,
-        dfs_fold_state root st_init st_acc [] g_acc ->
-        NoDup L ->
-        (forall x, In x L -> ~ graph_edge g_acc root x) ->
-        exists g',
-          dfs_fold_state root st_init (fold_left (dfs_fold' G n') L st_acc) [] g'.
-    Proof.
-      intros Hroot Hchildren st_acc g_acc Hstate Hnodup Htrack.
-      assert (HP :
-        (fun (remaining : list V) (st : state') =>
-           exists g, dfs_fold_state root st_init st [] g /\
-                     (forall x, In x remaining -> ~ graph_edge g root x) /\
-                     NoDup remaining /\ incl remaining L) [] (fold_left (dfs_fold' G n') L st_acc)).
-      { apply (fold_left_invariant
-          (fun (remaining : list V) (st : state') =>
-             exists g, dfs_fold_state root st_init st [] g /\
-                       (forall x, In x remaining -> ~ graph_edge g root x) /\
-                       NoDup remaining /\ incl remaining L)
-          (dfs_fold' G n') L st_acc).
-        - exists g_acc. split; [exact Hstate|]. split; [exact Htrack|].
-          split; [exact Hnodup | apply incl_refl].
-        - intros a' b l' HPbl.
-          destruct HPbl as [g_a [Hst [Htr [Hnd Hinc]]]].
-          destruct (dfs_fold_child G n' root st_init a' g_a b Hroot Hst
-                      (Htr b (in_eq b l')) (Hchildren a' b (Hinc b (in_eq b l'))))
-                   as [g' [Hst' Htr']].
-          exists g'. split; [exact Hst'|]. split; [| split].
-          + intros x Hx. apply Htr'.
-            * intro Heq. subst x. inversion Hnd. contradiction.
-            * apply Htr. right. exact Hx.
-          + inversion Hnd. assumption.
-          + intros x Hx. apply Hinc. right. exact Hx. }
-      destruct HP as [g' [Hst' _]]. exists g'. exact Hst'.
-    Qed.
-
-    Definition restriction root vs g g' :=
-      forall u v, graph_edge g' u v <-> graph_edge g u v /\ (exists p, path_to (graph_edge g) root p u /\ Forall (fun w => ~In w vs) (root :: p)).
-
-    From coqutil Require Import Tactics.fwd.
-
-    Lemma set_contains_iff_In vs v :
-      set_contains vs v = true <-> In v vs.
-    Proof.
-      unfold set_contains. symmetry.
-      apply (existsb_eqb_in (aeqb_dec := @eqb_boolspec V eqbV eqb_ok)).
-    Qed.
-
-  End fold.
-
-
-  Lemma dfs_fold_sound root vs n st0 g :
-    (forall p v,
-        path_to (graph_edge g) root p v ->
-        Forall (fun w => ~In w vs) (root :: p) ->
-        length p < n) ->
-    exists g',
-      dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) [] g' /\
-        restriction root vs g g'.
-    Proof.
-      revert root vs st0. induction n.
-      - intros root vs st0 H. simpl. cbv [edge_upd']. simpl.
-        destruct (set_contains vs root) eqn:E.
-        + exists graph.empty. split.
-          * apply dfs_init.
-          * cbv [restriction graph_edge]. intros u v.
-            rewrite graph.edges_empty. cbn [In].
-            split; [intros []|].
-            intros (_ & p & _ & Hf).
-            apply (Forall_inv Hf). apply set_contains_iff_In. exact E.
-        + exfalso.
-          enough (length (@nil V) < 0) by lia.
-          apply (H [] root).
-          * unfold path_to. split; [exact I | reflexivity].
-          * constructor.
-            -- intro Hin. apply set_contains_iff_In in Hin. congruence.
-            -- constructor.
-      - intros. simpl. cbv [edge_upd' already_seen].
-        destruct (set_contains vs root) eqn:E.
-        + eexists. split.
-          { apply dfs_init. }
-          cbv [restriction]. cbv [graph_edge]. intros. rewrite graph.edges_empty.
-          simpl. split; [contradiction|]. intros. fwd.
-          apply set_contains_iff_In in E. auto.
-        + Check dfs_fold_state_trans. Search fold_left. destruct (graph.edges g root).
-          -- admit.
-          -- destruct l. 2: admit. simpl. eexists. split.
-             ++ econstructor.
-    Admitted.
-
-  End fold.
+  Proof.
+    revert root vs st0. induction n as [|n' IH]; intros root vs st0 Hn Hroot; [lia|].
+    cbn [already_seen] in Hroot.
+    assert (Hedgeupd : edge_upd'0 (vs, st0) root = tree_edge_upd' tree_edge_upd (vs, st0) root).
+    { unfold edge_upd'. cbn [already_seen]. rewrite Hroot. reflexivity. }
+    assert (Habs : dfs_fold'0 g (S n') (vs, st0) root
+      = finish' finish (fold_left (dfs_fold'0 g n') (graph.edges g root)
+          (tree_edge_upd' tree_edge_upd (vs, st0) root)) root).
+    { rewrite dfs_fold'_S. cbn [already_seen]. rewrite Hroot. reflexivity. }
+    rewrite Hedgeupd, Habs.
+    set (st_init := tree_edge_upd' tree_edge_upd (vs, st0) root) in *.
+    rewrite graph_accumulator_S, Hroot. cbn [tree_edge_upd' tree_edge_accumulate].
+    pose (P := fun (remaining : list V) (a : list V * state)
+                   (b : list V * (list V * graph)) =>
+      fst a = fst b /\ fst (snd b) = [root] /\
+      dfs_fold_state0 root st_init a [root] (snd (snd b)) /\
+      (forall x, In x remaining -> ~ graph_edge (snd (snd b)) root x) /\
+      NoDup remaining /\ incl remaining (graph.edges g root)).
+    assert (HP : P [] (fold_left (dfs_fold'0 g n') (graph.edges g root) st_init)
+                      (fold_left (graph_accumulator g n') (graph.edges g root)
+                         (root :: vs, ([root], graph.empty)))).
+    { apply (fold_left_invariant2 P).
+      - subst P; cbn beta. split; [|split; [|split; [|split; [|split]]]].
+        + unfold st_init; cbn [tree_edge_upd' fst]; reflexivity.
+        + reflexivity.
+        + apply dfs_init.
+        + intros x Hx. cbv [graph_edge]. cbn [snd]. rewrite graph.edges_empty. apply in_nil.
+        + apply graph.edges_NoDup.
+        + apply incl_refl.
+      - intros a b w remaining' HP'. subst P; cbn beta in HP' |- *.
+        destruct HP' as (Hfst & Hbpath & Hstate & Htrack & Hnodup & Hincl).
+        destruct a as [vs_a s_a], b as [vs_b [p_b g_b]].
+        cbn [fst snd] in Hfst, Hbpath, Hstate, Htrack |- *.
+        subst vs_a p_b.
+        assert (Hwni : ~ In w remaining') by (inversion Hnodup; auto).
+        destruct (set_contains vs_b w) eqn:Hw.
+        + (* seen: untree edge *)
+          unfold graph_accumulator.
+          rewrite (dfs_fold'_seen untree_edge_upd tree_edge_upd finish g n' (vs_b, s_a) w)
+            by (cbn [already_seen]; exact Hw).
+          rewrite (dfs_fold'_seen untree_edge_accumulate tree_edge_accumulate finish_accumulate
+                     g n' (vs_b, ([root], g_b)) w) by (cbn [already_seen]; exact Hw).
+          split; [|split; [|split; [|split; [|split]]]].
+          * cbn [untree_edge_upd' untree_edge_accumulate fst]. reflexivity.
+          * cbn [untree_edge_upd' untree_edge_accumulate fst snd]. reflexivity.
+          * replace (snd (snd (untree_edge_upd' untree_edge_accumulate (vs_b, ([root], g_b)) w)))
+              with (graph.put g_b root w) by reflexivity.
+            apply dfs_untree_edge.
+            -- exact Hstate.
+            -- apply Htrack; apply in_eq.
+            -- cbn [already_seen]; exact Hw.
+          * cbn [untree_edge_upd' untree_edge_accumulate snd].
+            intros x Hx Hedge. cbv [graph_edge] in Hedge.
+            rewrite graph.edges_put in Hedge. destruct Hedge as [Hold | [_ Hxw]].
+            -- apply (Htrack x); [right; exact Hx | exact Hold].
+            -- subst x; contradiction.
+          * inversion Hnodup; auto.
+          * intros y Hy; apply Hincl; right; exact Hy.
+        + (* unseen *)
+          destruct n' as [|n''].
+          * (* no fuel: no-op *)
+            unfold graph_accumulator. cbn [dfs_fold' already_seen]. rewrite Hw.
+            split; [reflexivity | split; [reflexivity | split; [exact Hstate | split; [|split]]]].
+            -- intros x Hx. apply Htrack; right; exact Hx.
+            -- inversion Hnodup; auto.
+            -- intros y Hy; apply Hincl; right; exact Hy.
+          * (* explored *)
+            assert (Hrootseen : set_contains vs_b root = true).
+            { pose proof (already_seen_mono _ _ _ root st_init (vs_b, s_a) [root] g_b root Hstate) as Hm.
+              cbn [already_seen] in Hm. apply Hm.
+              unfold st_init; apply already_seen_tree_edge_upd_self. }
+            assert (Hrw : root <> w) by (intro; subst; congruence).
+            (* the IH for child w *)
+            pose proof (IH w vs_b s_a ltac:(lia) Hw) as Hchild.
+            revert Hchild.
+            destruct (graph_accumulator g (S n'') (vs_b, ([], graph.empty)) w)
+              as [vsw [pw g_w]] eqn:Ew.
+            cbn [snd].
+            assert (Hedgew : edge_upd'0 (vs_b, s_a) w = tree_edge_upd' tree_edge_upd (vs_b, s_a) w).
+            { unfold edge_upd'. cbn [already_seen]. rewrite Hw. reflexivity. }
+            rewrite Hedgew. intro Hchild.
+            (* the outer edges list is empty for w *)
+            assert (Hedges : graph.edges (graph.put g_b root w) w = []).
+            { destruct (graph.edges (graph.put g_b root w) w) as [|y ys] eqn:E; [reflexivity|].
+              exfalso.
+              assert (Hin : graph_edge (graph.put g_b root w) w y)
+                by (cbv [graph_edge]; rewrite E; left; reflexivity).
+              cbv [graph_edge] in Hin. rewrite graph.edges_put in Hin.
+              destruct Hin as [Hin | [Hwr _]]; [| congruence].
+              pose proof (dfs_source_seen _ _ _ root st_init (vs_b, s_a) [root] g_b w y
+                ltac:(unfold st_init; apply already_seen_tree_edge_upd_self) Hstate) as Hss.
+              cbv [graph_edge] in Hss. specialize (Hss Hin).
+              cbn [already_seen] in Hss. congruence. }
+            (* build the dfs_fold_state via tree edge + trans *)
+            assert (Hne : ~ graph_edge g_b root w).
+            { intro Hedge.
+              pose proof (dfs_target_seen _ _ _ root st_init (vs_b, s_a) [root] g_b root w Hstate Hedge) as Ht.
+              cbn [already_seen] in Ht. congruence. }
+            assert (Htree : dfs_fold_state0 root st_init
+                              (tree_edge_upd' tree_edge_upd (vs_b, s_a) w) (w :: [root])
+                              (graph.put g_b root w)).
+            { apply dfs_tree_edge; [exact Hne | exact Hstate | cbn [already_seen]; exact Hw]. }
+            pose proof (dfs_fold_state_trans _ _ _ root st_init (tree_edge_upd' tree_edge_upd (vs_b, s_a) w)
+              (dfs_fold'0 g (S n'') (vs_b, s_a) w) [root] [] (graph.put g_b root w) g_w w
+              Htree
+              ltac:(unfold st_init; apply already_seen_tree_edge_upd_self)
+              Hedges Hchild) as Htrans.
+            cbn [app] in Htrans.
+            (* now assemble P remaining' *)
+            split; [|split; [|split; [|split; [|split]]]].
+            -- apply (dfs_fold'_fst untree_edge_upd tree_edge_upd finish
+                       untree_edge_accumulate tree_edge_accumulate finish_accumulate g (S n'')).
+               reflexivity.
+            -- apply accum_path_inv.
+            -- rewrite (accum_step g n'' vs_b g_b root w Hw), Ew. cbn [snd]. exact Htrans.
+            -- intros x Hx Hedge. rewrite (accum_step g n'' vs_b g_b root w Hw), Ew in Hedge.
+               cbn [snd] in Hedge. cbv [graph_edge] in Hedge.
+               rewrite graph.edges_union in Hedge. destruct Hedge as [He1 | He2].
+               ++ rewrite graph.edges_put in He1. destruct He1 as [Hold | [_ Hxw]].
+                  ** apply (Htrack x); [right; exact Hx | exact Hold].
+                  ** subst x; contradiction.
+               ++ pose proof (dfs_source_init _ _ _ w (tree_edge_upd' tree_edge_upd (vs_b, s_a) w)
+                    (dfs_fold'0 g (S n'') (vs_b, s_a) w) [] g_w root x Hchild) as Hsi.
+                  cbv [graph_edge] in Hsi. specialize (Hsi He2).
+                  destruct Hsi as [Hrw' | Hunseen]; [congruence|].
+                  cbn [already_seen] in Hunseen. simpl in Hunseen.
+                  rewrite Hrootseen in Hunseen. destruct (eqb root w); discriminate.
+            -- inversion Hnodup; auto.
+            -- intros y Hy; apply Hincl; right; exact Hy. }
+    subst P; cbn beta in HP.
+    destruct HP as (_ & _ & Hstate & _).
+    revert Hstate.
+    destruct (fold_left (graph_accumulator g n') (graph.edges g root)
+                (root :: vs, ([root], graph.empty))) as [vsF [pF gF]].
+    cbn [finish' finish_accumulate snd]. intro Hstate.
+    apply dfs_finish. exact Hstate.
+  Qed.
 
   Definition check_tree :=
     dfs_fold (fun _ _ _ => false) (fun tree _ _ => tree).
