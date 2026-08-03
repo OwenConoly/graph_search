@@ -356,6 +356,43 @@ Section __.
     unfold gframe in H. cbn [fst snd] in H. injection H as -> -> ->. auto.
   Qed.
 
+  Definition pbot (suffix : list V) (s : list V * (list V * graph)) :=
+    (fst s, (fst (snd s) ++ suffix, snd (snd s))).
+
+  Lemma accum_bottom g n : forall vs prefix suffix G c,
+    prefix <> [] ->
+    graph_accumulator g n (vs, (prefix ++ suffix, G)) c
+    = pbot suffix (graph_accumulator g n (vs, (prefix, G)) c).
+  Proof.
+    assert (Hfin : forall suffix X c,
+      fst (snd X) <> [] ->
+      finish' finish_accumulate (pbot suffix X) c = pbot suffix (finish' finish_accumulate X c)).
+    { intros sfx X c HX. destruct X as [vsX [pX GX]]. cbn [pbot fst snd] in *.
+      destruct pX; [congruence|].
+      cbn [finish' finish_accumulate app fst snd]. reflexivity. }
+    unfold graph_accumulator.
+    induction n as [|n' IH]; intros vs prefix suffix G c Hne;
+      destruct prefix as [|a rest]; try congruence;
+      cbn [dfs_fold' already_seen]; destruct (set_contains vs c).
+    - cbn [untree_edge_upd' untree_edge_accumulate pbot fst snd app]. reflexivity.
+    - cbn [pbot fst snd app]. reflexivity.
+    - cbn [untree_edge_upd' untree_edge_accumulate pbot fst snd app]. reflexivity.
+    - cbn [tree_edge_upd' tree_edge_accumulate app].
+      match goal with
+      | |- finish' _ (fold_left ?f ?l ?i1) _ = pbot _ (finish' _ (fold_left _ _ ?i2) _) =>
+        assert (Hfold : fold_left f l i1 = pbot suffix (fold_left f l i2)
+                        /\ fst (snd (fold_left f l i2)) <> [])
+      end.
+      { apply (fold_left_invariant2 (fun _ s1 s2 => s1 = pbot suffix s2 /\ fst (snd s2) <> [])).
+        - cbn [pbot fst snd app]. split; [reflexivity | discriminate].
+        - intros s1 s2 c' l' [-> Hne2]. destruct s2 as [vs2 [p2 G2]].
+          cbn [pbot fst snd] in Hne2 |- *. split.
+          + apply (IH vs2 p2 suffix G2 c' Hne2).
+          + pose proof (accum_path_inv g n' vs2 p2 G2 c') as Hp.
+            unfold graph_accumulator in Hp. rewrite Hp. exact Hne2. }
+      destruct Hfold as [Hfold Hne2]. rewrite Hfold. apply Hfin. exact Hne2.
+  Qed.
+
   Context {state}
     (untree_edge_upd : state -> list V -> V -> state)
     (tree_edge_upd : state -> list V -> V -> state)
