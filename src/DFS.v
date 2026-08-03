@@ -106,21 +106,18 @@ Section __.
       graph_edge (graph.union g1 g2) x y <-> graph_edge g1 x y \/ graph_edge g2 x y.
     Proof. cbv [graph_edge]. apply graph.edges_union. Qed.
 
-    Lemma set_contains_cons v vs y :
-      set_contains (v :: vs) y = orb (eqb y v) (set_contains vs y).
-    Proof. reflexivity. Qed.
-
+    From coqutil Require Import Tactics.fwd.
     Lemma already_seen_tree_edge_upd st v y :
       already_seen st y = true -> already_seen (tree_edge_upd' st v) y = true.
     Proof.
-      destruct st as [vs s]. cbn [already_seen tree_edge_upd']. rewrite set_contains_cons.
+      destruct st as [vs s]. cbn [already_seen tree_edge_upd']. simpl.
       intro H. rewrite H. destruct (eqb y v); reflexivity.
     Qed.
 
     Lemma already_seen_tree_edge_upd_self st v :
       already_seen (tree_edge_upd' st v) v = true.
     Proof.
-      destruct st as [vs s]. cbn [already_seen tree_edge_upd']. rewrite set_contains_cons.
+      destruct st as [vs s]. cbn [already_seen tree_edge_upd']. simpl.
       destruct (@eqb_boolspec V eqbV eqb_ok v v); [reflexivity | congruence].
     Qed.
 
@@ -130,9 +127,11 @@ Section __.
 
     Lemma already_seen_mono root st0 st p g y :
       dfs_fold_state root st0 st p g ->
-      already_seen st0 y = true -> already_seen st y = true.
+      already_seen st0 y = true ->
+      already_seen st y = true.
     Proof.
-      induction 1; eauto using already_seen_tree_edge_upd, already_seen_untree_edge_upd.     Qed.
+      induction 1; eauto using already_seen_tree_edge_upd, already_seen_untree_edge_upd.
+    Qed.
 
     Lemma dfs_target_seen root st0 st p g x y :
       dfs_fold_state root st0 st p g -> graph_edge g x y -> already_seen st y = true.
@@ -152,13 +151,70 @@ Section __.
       - apply (IH x y). exact He.
     Qed.
 
+    Lemma dfs_path_seen root st0 st p g z :
+      dfs_fold_state root st0 st p g -> In z p -> already_seen st z = true.
+    Proof.
+      intro H. revert z.
+      induction H as [ | st2 p0 g0 v Hne Hrec IH Hseen
+                       | st2 p0 g0 v Hrec IH Hne Hseen
+                       | st2 u2 p0 g0 Hrec IH ]; intros z Hz.
+      - destruct Hz.
+      - destruct Hz as [<- | Hz].
+        + apply already_seen_tree_edge_upd_self.
+        + apply already_seen_tree_edge_upd. apply IH. exact Hz.
+      - rewrite already_seen_untree_edge_upd. apply IH. exact Hz.
+      - apply IH. right. exact Hz.
+    Qed.
+
+    Lemma dfs_path_unseen root st0 st p g z :
+      dfs_fold_state root st0 st p g -> In z p -> already_seen st0 z = false.
+    Proof.
+      intro H. revert z.
+      induction H as [ | st2 p0 g0 v Hne Hrec IH Hseen
+                       | st2 p0 g0 v Hrec IH Hne Hseen
+                       | st2 u2 p0 g0 Hrec IH ]; intros z Hz.
+      - destruct Hz.
+      - destruct Hz as [<- | Hz].
+        + destruct (already_seen st0 v) eqn:E; [ | reflexivity ].
+          pose proof (already_seen_mono _ _ _ _ _ _ Hrec E) as Hc. congruence.
+        + apply IH. exact Hz.
+      - apply IH. exact Hz.
+      - apply IH. right. exact Hz.
+    Qed.
+
+    Lemma dfs_source_seen root st0 st p g x y :
+      already_seen st0 root = true ->
+      dfs_fold_state root st0 st p g -> graph_edge g x y -> already_seen st x = true.
+    Proof.
+      intros Hroot H. revert x y.
+      induction H as [ | st2 p0 g0 v Hne Hrec IH Hseen
+                       | st2 p0 g0 v Hrec IH Hne Hseen
+                       | st2 u2 p0 g0 Hrec IH ]; intros x y He; cbv [graph_edge] in He.
+      - rewrite graph.edges_empty in He. destruct He.
+      - rewrite graph.edges_put in He. destruct He as [Hold | [Hxhd _]].
+        + apply already_seen_tree_edge_upd. apply (IH x y). exact Hold.
+        + subst x. apply already_seen_tree_edge_upd.
+          destruct p0 as [|z rest]; cbn [hd];
+            [ exact (already_seen_mono _ _ _ _ _ _ Hrec Hroot)
+            | apply (dfs_path_seen _ _ _ _ _ _ Hrec); apply in_eq ].
+      - rewrite graph.edges_put in He. rewrite already_seen_untree_edge_upd.
+        destruct He as [Hold | [Hxhd _]].
+        + apply (IH x y). exact Hold.
+        + subst x.
+          destruct p0 as [|z rest]; cbn [hd];
+            [ exact (already_seen_mono _ _ _ _ _ _ Hrec Hroot)
+            | apply (dfs_path_seen _ _ _ _ _ _ Hrec); apply in_eq ].
+      - apply (IH x y). exact He.
+    Qed.
+
     Lemma dfs_fold_state_trans root st0 st st' p p' g g' u :
       dfs_fold_state root st0 st (u :: p) g ->
+      already_seen st0 root = true ->
       graph.edges g u = [] ->
       dfs_fold_state u st st' p' g' ->
       dfs_fold_state root st0 st' (p' ++ u :: p) (graph.union g g').
     Proof.
-      intros H1 H2.
+      intros H1 Hroot Hedges H2.
       induction H2 as [ | st2 p0 g0 v Hne Hrec IH Hseen
                         | st2 p0 g0 v Hrec IH Hne Hseen
                         | st2 u2 p0 g0 Hrec IH ].
@@ -178,13 +234,18 @@ Section __.
         rewrite graph_union_put_r. rewrite <- Hhd.
         apply dfs_untree_edge.
         + exact IH.
-        + rewrite Hhd.
-          (* STUCK: need ~ graph_edge (union g g0) (hd u p0) v, but v is SEEN,
-             and the outer graph g CAN contain that edge (back-edge to root). *)
-          admit.
+        + rewrite Hhd. intro Hedge. apply graph_edge_union in Hedge.
+          destruct Hedge as [Hg | Hg0].
+          * destruct p0 as [|z rest].
+            -- cbv [graph_edge] in Hg. cbn [hd] in Hg. rewrite Hedges in Hg. destruct Hg.
+            -- cbn [hd] in Hg.
+               pose proof (dfs_path_unseen _ _ _ _ _ _ Hrec (in_eq z rest)) as Hun.
+               pose proof (dfs_source_seen _ _ _ _ _ _ _ Hroot H1 Hg) as Hsn.
+               congruence.
+          * exact (Hne Hg0).
         + exact Hseen.
       - cbn [app] in IH. eapply dfs_finish. exact IH.
-    Abort.
+    Qed.
 
     Definition restriction root vs g g' :=
       forall u v, graph_edge g' u v <-> graph_edge g u v /\ (exists p, path_to (graph_edge g) root p u /\ Forall (fun w => ~In w vs) (root :: p)).
