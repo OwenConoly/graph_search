@@ -49,6 +49,7 @@ Section __.
     Context {state : Type}.
     Context (untree_edge_upd : state -> list V -> V -> state).
     Context (tree_edge_upd : state -> list V -> V -> state).
+    Context (finish : state -> list V -> V -> state).
 
     Definition set_contains vs v :=
       List.existsb (eqb v) vs.
@@ -61,6 +62,7 @@ Section __.
       Definition state' : Type := list V * state.
       Definition untree_edge_upd' '(vs, st) v := (vs, untree_edge_upd st vs v).
       Definition tree_edge_upd' '(vs, st) v := (v :: vs, tree_edge_upd st vs v).
+      Definition finish' '(vs, st) v := (vs, finish st vs v).
 
       Definition already_seen (st' : state') v :=
         let '(vs, _) := st' in set_contains vs v.
@@ -68,7 +70,7 @@ Section __.
       Fixpoint dfs_fold' n st' v : state' :=
         if already_seen st' v then untree_edge_upd' st' v else
           match n with
-          | S n' => fold_left (dfs_fold' n') (graph.edges g v) (tree_edge_upd' st' v)
+          | S n' => finish' (fold_left (dfs_fold' n') (graph.edges g v) (tree_edge_upd' st' v)) v
           | O => st'
           end.
 
@@ -89,7 +91,7 @@ Section __.
       dfs_fold_state _ _ (untree_edge_upd' st v) p (graph.put g (hd root p) v)
     | dfs_finish st u p g :
       dfs_fold_state _ _ st (u :: p) g ->
-      dfs_fold_state _ _ st p g.
+      dfs_fold_state _ _ (finish' st u) p g.
 
     Context {ok : graph.ok graph}.
     Context {eqb_ok : Eqb_ok eqbV}.
@@ -389,6 +391,8 @@ Section __.
 
   Lemma dfs_fold_sound1 root vs n st0 g :
     dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) [] (graph_accumulator g n (vs, st0) root).
+  Proof. (*TODO*).
+
   Lemma dfs_fold_sound root vs n st0 g :
     (forall p v,
         path_to (graph_edge g) root p v ->
