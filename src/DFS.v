@@ -154,6 +154,7 @@ Section __.
 
     Lemma dfs_fold_state_trans root st0 st st' p p' g g' u :
       dfs_fold_state root st0 st (u :: p) g ->
+      graph.edges g u = [] ->
       dfs_fold_state u st st' p' g' ->
       dfs_fold_state root st0 st' (p' ++ u :: p) (graph.union g g').
     Proof.
