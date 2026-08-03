@@ -100,11 +100,25 @@ Section __.
           restriction root vs g g'.
     Proof.
       revert root vs st0. induction n.
-      - intros root vs st0 H. simpl. exfalso.
-        enough (length (@nil V) < 0) by lia.
-        apply (H [] root).
-        + unfold path_to. split; [exact I | reflexivity].
-        + constructor.
+      - intros root vs st0 H.
+        assert (Hmem : In root vs <-> already_seen (vs, st0) root = true)
+          by exact (existsb_eqb_in (aeqb_dec := @eqb_boolspec V eqbV eqb_ok) root vs).
+        destruct (already_seen (vs, st0) root) eqn:E.
+        + cbv [edge_upd']. rewrite E. cbn [dfs_fold']. rewrite E.
+          exists graph.empty, [root]. split.
+          * apply dfs_init.
+          * cbv [restriction graph_edge]. intros u v.
+            rewrite graph.edges_empty. cbn [In].
+            split; [intros []|].
+            intros (_ & p & _ & Hf).
+            apply (Forall_inv Hf). apply Hmem. reflexivity.
+        + exfalso.
+          enough (length (@nil V) < 0) by lia.
+          apply (H [] root).
+          * unfold path_to. split; [exact I | reflexivity].
+          * constructor.
+            -- intro Hin. apply (proj1 Hmem) in Hin. congruence.
+            -- constructor.
       - intros. simpl. cbv [edge_upd' already_seen].
         destruct (set_contains vs root) eqn:E.
         + do 2 eexists. split.
