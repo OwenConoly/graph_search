@@ -64,7 +64,7 @@ Section __.
     End with_graph.
 
     Inductive dfs_fold_state (root : V) (st0 : state') : state' -> list V (*current path*)-> graph (*explored edges*) -> Prop :=
-    | dfs_init : dfs_fold_state _ _ (tree_edge_upd' st0 root) [root] graph.empty
+    | dfs_init : dfs_fold_state _ _ st0 [root] graph.empty
     | dfs_tree_edge st p g v :
       ~graph_edge g (hd root p) v ->
       dfs_fold_state _ _ st p g ->
@@ -82,15 +82,22 @@ Section __.
     Context {ok : graph.ok graph}.
     Context {eqb_ok : Eqb_ok eqbV}.
 
-    Definition restriction root vs n g g' :=
-      forall u v, graph_edge g' u v <-> graph_edge g u v /\ (exists p, path_to (graph_edge g) root p u /\ length p <= n /\ Forall (fun w => ~In w vs) p).
+    Definition restriction root vs g g' :=
+      forall u v, graph_edge g' u v <-> graph_edge g u v /\ (exists p, path_to (graph_edge g) root p u /\ Forall (fun w => ~In w vs) p).
+
+    Definition edge_upd' st v :=
+      if already_seen st v then untree_edge_upd' st v else
+        tree_edge_upd' st v.
 
     From coqutil Require Import Tactics.fwd.
     Lemma dfs_fold_sound root vs n st0 g :
-      set_contains vs root = false ->
+      (forall p v,
+          path_to (graph_edge g) root p v ->
+          Forall (fun w => ~In w vs) p ->
+          length p < n) ->
       exists g' p,
-        dfs_fold_state root (vs, st0) (dfs_fold' g n (vs, st0) root) p g' /\
-          restriction root vs n g g'.
+        dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) p g' /\
+          restriction root vs g g'.
     Proof.
       revert root vs st0. induction n.
       - intros. simpl. rewrite H. do 3 eexists. split.
