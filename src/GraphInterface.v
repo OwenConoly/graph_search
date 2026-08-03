@@ -67,6 +67,26 @@ Section ops.
     - intros [H|H]; [auto|]. right. split; [|exact H].
       apply (proj2 (sources_spec g2 u')). intro Hnil. rewrite Hnil in H. exact H.
   Qed.
+
+  Lemma union_empty_r g :
+    union g empty = g.
+  Proof.
+    apply graph_ext. intro v. unfold same_set. split; intros x Hx.
+    - rewrite edges_union, edges_empty in Hx.
+      destruct Hx as [H|H]; [exact H | destruct H].
+    - rewrite edges_union, edges_empty. left. exact Hx.
+  Qed.
+
+  Lemma union_put_r g1 g2 u v :
+    union g1 (put g2 u v) = put (union g1 g2) u v.
+  Proof.
+    apply graph_ext. intro w. unfold same_set.
+    assert (Hiff : forall x,
+               In x (edges (union g1 (put g2 u v)) w)
+               <-> In x (edges (put (union g1 g2) u v) w)).
+    { intro x. rewrite !edges_union, !edges_put, !edges_union. tauto. }
+    split; intros x Hx; [exact (proj1 (Hiff x) Hx) | exact (proj2 (Hiff x) Hx)].
+  Qed.
 End ops.
 End graph.
 Global Coercion graph.rep : graph.graph >-> Sortclass.

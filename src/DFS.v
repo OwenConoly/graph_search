@@ -82,26 +82,6 @@ Section __.
     Context {ok : graph.ok graph}.
     Context {eqb_ok : Eqb_ok eqbV}.
 
-    Lemma graph_union_empty_r (g : graph) :
-      graph.union g graph.empty = g.
-    Proof.
-      apply graph.graph_ext. intro v. unfold same_set. split; intros x Hx.
-      - rewrite graph.edges_union, graph.edges_empty in Hx.
-        destruct Hx as [H|H]; [exact H | destruct H].
-      - rewrite graph.edges_union, graph.edges_empty. left. exact Hx.
-    Qed.
-
-    Lemma graph_union_put_r (g1 g2 : graph) u v :
-      graph.union g1 (graph.put g2 u v) = graph.put (graph.union g1 g2) u v.
-    Proof.
-      apply graph.graph_ext. intro w. unfold same_set.
-      assert (Hiff : forall x,
-                 In x (graph.edges (graph.union g1 (graph.put g2 u v)) w)
-                 <-> In x (graph.edges (graph.put (graph.union g1 g2) u v) w)).
-      { intro x. rewrite !graph.edges_union, !graph.edges_put, !graph.edges_union. tauto. }
-      split; intros x Hx; [exact (proj1 (Hiff x) Hx) | exact (proj2 (Hiff x) Hx)].
-    Qed.
-
     Lemma graph_edge_union g1 g2 x y :
       graph_edge (graph.union g1 g2) x y <-> graph_edge g1 x y \/ graph_edge g2 x y.
     Proof. cbv [graph_edge]. apply graph.edges_union. Qed.
@@ -218,9 +198,9 @@ Section __.
       induction H2 as [ | st2 p0 g0 v Hne Hrec IH Hseen
                         | st2 p0 g0 v Hrec IH Hne Hseen
                         | st2 u2 p0 g0 Hrec IH ].
-      - cbn [app]. rewrite graph_union_empty_r. exact H1.
+      - cbn [app]. rewrite graph.union_empty_r. exact H1.
       - assert (Hhd : hd root (p0 ++ u :: p) = hd u p0) by (destruct p0; reflexivity).
-        cbn [app]. rewrite graph_union_put_r. rewrite <- Hhd.
+        cbn [app]. rewrite graph.union_put_r. rewrite <- Hhd.
         apply dfs_tree_edge.
         + rewrite Hhd. intro Hedge. apply graph_edge_union in Hedge.
           destruct Hedge as [Hg | Hg0].
@@ -231,7 +211,7 @@ Section __.
         + exact IH.
         + exact Hseen.
       - assert (Hhd : hd root (p0 ++ u :: p) = hd u p0) by (destruct p0; reflexivity).
-        rewrite graph_union_put_r. rewrite <- Hhd.
+        rewrite graph.union_put_r. rewrite <- Hhd.
         apply dfs_untree_edge.
         + exact IH.
         + rewrite Hhd. intro Hedge. apply graph_edge_union in Hedge.
