@@ -78,7 +78,7 @@ Section __.
     End with_graph.
 
     Inductive dfs_fold_state (root : V) (st0 : state') : state' -> list V (*current path*)-> graph (*explored edges*) -> Prop :=
-    | dfs_init : dfs_fold_state _ _ st0 [] graph.empty
+    | dfs_init : dfs_fold_state _ _ st0 [root] graph.empty
     | dfs_tree_edge st p g v :
       ~graph_edge g (hd root p) v ->
       dfs_fold_state _ _ st p g ->
