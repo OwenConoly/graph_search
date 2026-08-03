@@ -79,33 +79,111 @@ Section __.
       dfs_fold_state _ _ st (u :: p) g ->
       dfs_fold_state _ _ st p g.
 
+    Context {ok : graph.ok graph}.
+    Context {eqb_ok : Eqb_ok eqbV}.
+
     Lemma graph_union_empty_r (g : graph) :
       graph.union g graph.empty = g.
-    Proof. Admitted.
+    Proof.
+      apply graph.graph_ext. intro v. unfold same_set. split; intros x Hx.
+      - rewrite graph.edges_union, graph.edges_empty in Hx.
+        destruct Hx as [H|H]; [exact H | destruct H].
+      - rewrite graph.edges_union, graph.edges_empty. left. exact Hx.
+    Qed.
 
     Lemma graph_union_put_r (g1 g2 : graph) u v :
       graph.union g1 (graph.put g2 u v) = graph.put (graph.union g1 g2) u v.
-    Proof. Admitted.
+    Proof.
+      apply graph.graph_ext. intro w. unfold same_set.
+      assert (Hiff : forall x,
+                 In x (graph.edges (graph.union g1 (graph.put g2 u v)) w)
+                 <-> In x (graph.edges (graph.put (graph.union g1 g2) u v) w)).
+      { intro x. rewrite !graph.edges_union, !graph.edges_put, !graph.edges_union. tauto. }
+      split; intros x Hx; [exact (proj1 (Hiff x) Hx) | exact (proj2 (Hiff x) Hx)].
+    Qed.
+
+    Lemma graph_edge_union g1 g2 x y :
+      graph_edge (graph.union g1 g2) x y <-> graph_edge g1 x y \/ graph_edge g2 x y.
+    Proof. cbv [graph_edge]. apply graph.edges_union. Qed.
+
+    Lemma set_contains_cons v vs y :
+      set_contains (v :: vs) y = orb (eqb y v) (set_contains vs y).
+    Proof. reflexivity. Qed.
+
+    Lemma already_seen_tree_edge_upd st v y :
+      already_seen st y = true -> already_seen (tree_edge_upd' st v) y = true.
+    Proof.
+      destruct st as [vs s]. cbn [already_seen tree_edge_upd']. rewrite set_contains_cons.
+      intro H. rewrite H. destruct (eqb y v); reflexivity.
+    Qed.
+
+    Lemma already_seen_tree_edge_upd_self st v :
+      already_seen (tree_edge_upd' st v) v = true.
+    Proof.
+      destruct st as [vs s]. cbn [already_seen tree_edge_upd']. rewrite set_contains_cons.
+      destruct (@eqb_boolspec V eqbV eqb_ok v v); [reflexivity | congruence].
+    Qed.
+
+    Lemma already_seen_untree_edge_upd st v y :
+      already_seen (untree_edge_upd' st v) y = already_seen st y.
+    Proof. destruct st as [vs s]. reflexivity. Qed.
+
+    Lemma already_seen_mono root st0 st p g y :
+      dfs_fold_state root st0 st p g ->
+      already_seen st0 y = true -> already_seen st y = true.
+    Proof.
+      induction 1; eauto using already_seen_tree_edge_upd, already_seen_untree_edge_upd.     Qed.
+
+    Lemma dfs_target_seen root st0 st p g x y :
+      dfs_fold_state root st0 st p g -> graph_edge g x y -> already_seen st y = true.
+    Proof.
+      intro H. revert x y.
+      induction H as [ | st2 p0 g0 v Hne Hrec IH Hseen
+                       | st2 p0 g0 v Hrec IH Hne Hseen
+                       | st2 u2 p0 g0 Hrec IH ]; intros x y He; cbv [graph_edge] in He.
+      - rewrite graph.edges_empty in He. destruct He.
+      - rewrite graph.edges_put in He. destruct He as [Hold | [_ Hvy]].
+        + apply already_seen_tree_edge_upd. apply (IH x y). exact Hold.
+        + subst y. apply already_seen_tree_edge_upd_self.
+      - rewrite graph.edges_put in He. rewrite already_seen_untree_edge_upd.
+        destruct He as [Hold | [_ Hvy]].
+        + apply (IH x y). exact Hold.
+        + subst y. exact Hseen.
+      - apply (IH x y). exact He.
+    Qed.
 
     Lemma dfs_fold_state_trans root st0 st st' p p' g g' u :
       dfs_fold_state root st0 st (u :: p) g ->
       dfs_fold_state u st st' p' g' ->
       dfs_fold_state root st0 st' (p' ++ u :: p) (graph.union g g').
     Proof.
-      intros H. induction 1.
-      - simpl. rewrite graph_union_empty_r. assumption.
-      - simpl. rewrite graph_union_put_r.
-        replace (hd u p0) with (hd root (p0 ++ u :: p)).
-        2: { destruct p0; reflexivity. }
-        constructor.
-
-        econstructor. replace (graph.union g _) with graph.empty by admit.
-      remember (u :: p) as p0 eqn:E. intros H.
-      revert u p E.
-
-
-    Context {ok : graph.ok graph}.
-    Context {eqb_ok : Eqb_ok eqbV}.
+      intros H1 H2.
+      induction H2 as [ | st2 p0 g0 v Hne Hrec IH Hseen
+                        | st2 p0 g0 v Hrec IH Hne Hseen
+                        | st2 u2 p0 g0 Hrec IH ].
+      - cbn [app]. rewrite graph_union_empty_r. exact H1.
+      - assert (Hhd : hd root (p0 ++ u :: p) = hd u p0) by (destruct p0; reflexivity).
+        cbn [app]. rewrite graph_union_put_r. rewrite <- Hhd.
+        apply dfs_tree_edge.
+        + rewrite Hhd. intro Hedge. apply graph_edge_union in Hedge.
+          destruct Hedge as [Hg | Hg0].
+          * pose proof (dfs_target_seen _ _ _ _ _ _ _ H1 Hg) as Hs.
+            pose proof (already_seen_mono _ _ _ _ _ _ Hrec Hs) as Hs2.
+            congruence.
+          * exact (Hne Hg0).
+        + exact IH.
+        + exact Hseen.
+      - assert (Hhd : hd root (p0 ++ u :: p) = hd u p0) by (destruct p0; reflexivity).
+        rewrite graph_union_put_r. rewrite <- Hhd.
+        apply dfs_untree_edge.
+        + exact IH.
+        + rewrite Hhd.
+          (* STUCK: need ~ graph_edge (union g g0) (hd u p0) v, but v is SEEN,
+             and the outer graph g CAN contain that edge (back-edge to root). *)
+          admit.
+        + exact Hseen.
+      - cbn [app] in IH. eapply dfs_finish. exact IH.
+    Abort.
 
     Definition restriction root vs g g' :=
       forall u v, graph_edge g' u v <-> graph_edge g u v /\ (exists p, path_to (graph_edge g) root p u /\ Forall (fun w => ~In w vs) (root :: p)).
@@ -136,7 +214,7 @@ Section __.
       - intros root vs st0 H. simpl. cbv [edge_upd']. simpl.
         destruct (set_contains vs root) eqn:E.
         + exists graph.empty. split.
-          * eapply dfs_finish. constructor.
+          * apply dfs_init.
           * cbv [restriction graph_edge]. intros u v.
             rewrite graph.edges_empty. cbn [In].
             split; [intros []|].
@@ -152,7 +230,7 @@ Section __.
       - intros. simpl. cbv [edge_upd' already_seen].
         destruct (set_contains vs root) eqn:E.
         + eexists. split.
-          { eapply dfs_finish. constructor. }
+          { apply dfs_init. }
           cbv [restriction]. cbv [graph_edge]. intros. rewrite graph.edges_empty.
           simpl. split; [contradiction|]. intros. fwd.
           apply set_contains_iff_In in E. auto.
