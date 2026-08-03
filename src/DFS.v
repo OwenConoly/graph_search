@@ -81,16 +81,16 @@ Section __.
 
     Inductive dfs_fold_state (root : V) (st0 : state') : state' -> list V (*current path*)-> graph (*explored edges*) -> Prop :=
     | dfs_init : dfs_fold_state _ _ st0 [root] graph.empty
-    | dfs_tree_edge st p g v :
-      ~graph_edge g (hd root p) v ->
-      dfs_fold_state _ _ st p g ->
+    | dfs_tree_edge st u p g v :
+      ~graph_edge g u v ->
+      dfs_fold_state _ _ st (u :: p) g ->
       already_seen st v = false ->
-      dfs_fold_state _ _ (tree_edge_upd' st v) (v :: p) (graph.put g (hd root p) v)
-    | dfs_untree_edge st p g v :
-      dfs_fold_state _ _ st p g ->
-      ~graph_edge g (hd root p) v ->
+      dfs_fold_state _ _ (tree_edge_upd' st v) (v :: p) (graph.put g u v)
+    | dfs_untree_edge st u p g v :
+      dfs_fold_state _ _ st (u :: p) g ->
+      ~graph_edge g u v ->
       already_seen st v = true ->
-      dfs_fold_state _ _ (untree_edge_upd' st v) p (graph.put g (hd root p) v)
+      dfs_fold_state _ _ (untree_edge_upd' st v) p (graph.put g u v)
     | dfs_finish st u p g :
       dfs_fold_state _ _ st (u :: p) g ->
       dfs_fold_state _ _ (finish' st u) p g.
