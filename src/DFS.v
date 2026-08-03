@@ -93,6 +93,10 @@ Section __.
       dfs_fold_state _ _ st (u :: p) g ->
       dfs_fold_state _ _ (finish' st u) p g.
 
+    Definition edge_upd' st v :=
+      if already_seen st v then untree_edge_upd' st v else
+        tree_edge_upd' st v.
+
   End fold.
 
   Context {ok : graph.ok graph}.
@@ -118,17 +122,25 @@ Section __.
     let '(path, g) := path_g in
     (tl path, g).
 
-  Definition graph_accumulator := dfs_fold' tree_edge_accumulate untree_edge_accumulate finish_accumulate.
+  Definition graph_accumulator := dfs_fold' untree_edge_accumulate tree_edge_accumulate finish_accumulate.
 
   Context {state}
     (untree_edge_upd : state -> list V -> V -> state)
-    (tree_edge_upd : state -> list V -> V -> state).
+    (tree_edge_upd : state -> list V -> V -> state)
+    (finish : state -> list V -> V -> state).
 
-  Local Notation dfs_fold'0 := (dfs_fold' untree_edge_upd tree_edge_upd).
+  Local Notation dfs_fold'0 := (dfs_fold' untree_edge_upd tree_edge_upd finish).
+  Local Notation edge_upd'0 := (edge_upd' untree_edge_upd tree_edge_upd).
+  Local Notation dfs_fold_state0 := (dfs_fold_state untree_edge_upd tree_edge_upd finish).
 
   Lemma dfs_fold_sound1 root vs n st0 g :
-    dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) [] (graph_accumulator g n (vs, st0) root).
-  Proof. (*TODO*).
+    let '(_, (_, g_acc)) := graph_accumulator g n (vs, ([], graph.empty)) root in
+    dfs_fold_state0 root
+      (edge_upd'0 (vs, st0) root)
+      (dfs_fold'0 g n (vs, st0) root)
+      []
+      g_acc.
+  Proof. (*TODO*) Admitted.
 
 
     Lemma graph_edge_union g1 g2 x y :
@@ -393,10 +405,6 @@ Section __.
 
     Definition restriction root vs g g' :=
       forall u v, graph_edge g' u v <-> graph_edge g u v /\ (exists p, path_to (graph_edge g) root p u /\ Forall (fun w => ~In w vs) (root :: p)).
-
-    Definition edge_upd' st v :=
-      if already_seen st v then untree_edge_upd' st v else
-        tree_edge_upd' st v.
 
     From coqutil Require Import Tactics.fwd.
 
