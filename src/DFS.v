@@ -83,7 +83,7 @@ Section __.
     Context {eqb_ok : Eqb_ok eqbV}.
 
     Definition restriction root vs g g' :=
-      forall u v, graph_edge g' u v <-> graph_edge g u v /\ (exists p, path_to (graph_edge g) root p u /\ Forall (fun w => ~In w vs) p).
+      forall u v, graph_edge g' u v <-> graph_edge g u v /\ (exists p, path_to (graph_edge g) root p u /\ Forall (fun w => ~In w vs) (root :: p)).
 
     Definition edge_upd' st v :=
       if already_seen st v then untree_edge_upd' st v else
@@ -93,19 +93,25 @@ Section __.
     Lemma dfs_fold_sound root vs n st0 g :
       (forall p v,
           path_to (graph_edge g) root p v ->
-          Forall (fun w => ~In w vs) p ->
+          Forall (fun w => ~In w vs) (root :: p) ->
           length p < n) ->
       exists g' p,
         dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) p g' /\
           restriction root vs g g'.
     Proof.
       revert root vs st0. induction n.
-      - intros. simpl. rewrite H. do 3 eexists. split.
-        { apply dfs_init. apply dfs_ (st := (vs, st0)). constructor. simpl.
-
-        exists graph.empty. exists [], []. split.
-        + cbv [restriction]. intros. cbv [graph_edge]. rewrite graph.edges_empty.
-          simpl. split; try contradiction. intros. fwd.
+      - intros root vs st0 H. simpl. exfalso.
+        enough (length (@nil V) < 0) by lia.
+        apply (H [] root).
+        + unfold path_to. split; [exact I | reflexivity].
+        + constructor.
+      - intros. simpl. cbv [edge_upd' already_seen].
+        destruct (set_contains vs root) eqn:E.
+        + do 2 eexists. split.
+          { constructor. }
+          cbv [restriction]. cbv [graph_edge]. intros. rewrite graph.edges_empty.
+          simpl. split; [contradiction|]. intros. fwd.
+    Admitted.
 
   End fold.
 
