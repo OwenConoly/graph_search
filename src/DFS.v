@@ -393,6 +393,55 @@ Section __.
       destruct Hfold as [Hfold Hne2]. rewrite Hfold. apply Hfin. exact Hne2.
   Qed.
 
+  Lemma accum_fold_frame g m gacc L s :
+    fold_left (graph_accumulator g m) L (gframe gacc s)
+    = gframe gacc (fold_left (graph_accumulator g m) L s).
+  Proof. apply fold_left_hom. intros a b. apply accum_frame. Qed.
+
+  Lemma accum_fold_bottom g m suffix L s :
+    fst (snd s) <> [] ->
+    fold_left (graph_accumulator g m) L (pbot suffix s)
+    = pbot suffix (fold_left (graph_accumulator g m) L s).
+  Proof.
+    intro Hs.
+    enough (H : fold_left (graph_accumulator g m) L (pbot suffix s)
+                = pbot suffix (fold_left (graph_accumulator g m) L s)
+                /\ fst (snd (fold_left (graph_accumulator g m) L s)) <> []) by apply H.
+    apply (fold_left_invariant2 (fun _ s1 s2 => s1 = pbot suffix s2 /\ fst (snd s2) <> [])).
+    - split; [reflexivity | exact Hs].
+    - intros s1 s2 c l' [-> Hne2]. destruct s2 as [vs2 [p2 G2]].
+      cbn [pbot fst snd] in Hne2 |- *. split.
+      + apply accum_bottom. exact Hne2.
+      + pose proof (accum_path_inv g m vs2 p2 G2 c) as Hp. rewrite Hp. exact Hne2.
+  Qed.
+
+  Lemma graph_accumulator_S g m vs path G w :
+    graph_accumulator g (S m) (vs, (path, G)) w
+    = if set_contains vs w
+      then untree_edge_upd' untree_edge_accumulate (vs, (path, G)) w
+      else finish' finish_accumulate (fold_left (graph_accumulator g m) (graph.edges g w)
+             (tree_edge_upd' tree_edge_accumulate (vs, (path, G)) w)) w.
+  Proof. reflexivity. Qed.
+
+  Lemma accum_step g m vs g_acc root w :
+    set_contains vs w = false ->
+    snd (snd (graph_accumulator g (S m) (vs, ([root], g_acc)) w))
+    = graph.union (graph.put g_acc root w)
+                  (snd (snd (graph_accumulator g (S m) (vs, ([], graph.empty)) w))).
+  Proof.
+    intro Hw.
+    assert (Hfinsnd : forall X, snd (snd (finish' finish_accumulate X w)) = snd (snd X)).
+    { intro X. destruct X as [vsX [pX GX]]. reflexivity. }
+    rewrite !graph_accumulator_S, Hw.
+    cbn [tree_edge_upd' tree_edge_accumulate].
+    rewrite !Hfinsnd.
+    replace (w :: vs, ([w; root], graph.put g_acc root w))
+      with (gframe (graph.put g_acc root w) (pbot [root] (w :: vs, ([w], graph.empty)))).
+    2:{ unfold gframe, pbot. cbn [fst snd app]. rewrite graph.union_empty_r. reflexivity. }
+    rewrite accum_fold_frame, accum_fold_bottom by discriminate.
+    unfold gframe, pbot. cbn [fst snd]. reflexivity.
+  Qed.
+
   Context {state}
     (untree_edge_upd : state -> list V -> V -> state)
     (tree_edge_upd : state -> list V -> V -> state)
