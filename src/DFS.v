@@ -369,14 +369,34 @@ Section __.
       apply (existsb_eqb_in (aeqb_dec := @eqb_boolspec V eqbV eqb_ok)).
     Qed.
 
-    Lemma dfs_fold_sound root vs n st0 g :
-      (forall p v,
-          path_to (graph_edge g) root p v ->
-          Forall (fun w => ~In w vs) (root :: p) ->
-          length p < n) ->
-      exists g',
-        dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) [] g' /\
-          restriction root vs g g'.
+  End fold.
+
+  Definition accumulate_edge (prev_g : option V * graph) (_ : list V) (cur : V) :=
+    let '(prev, g) := prev_g in
+    (Some cur,
+      match prev with
+      | None => g
+      | Some prev0 => graph.put g prev0 cur
+      end).
+
+  Definition graph_accumulator := dfs_fold' accumulate_edge accumulate_edge.
+
+  Context {state}
+    (untree_edge_upd : state -> list V -> V -> state)
+    (tree_edge_upd : state -> list V -> V -> state).
+
+  Local Notation dfs_fold'0 := (dfs_fold' untree_edge_upd tree_edge_upd).
+
+  Lemma dfs_fold_sound1 root vs n st0 g :
+    dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) [] (graph_accumulator g n (vs, st0) root).
+  Lemma dfs_fold_sound root vs n st0 g :
+    (forall p v,
+        path_to (graph_edge g) root p v ->
+        Forall (fun w => ~In w vs) (root :: p) ->
+        length p < n) ->
+    exists g',
+      dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) [] g' /\
+        restriction root vs g g'.
     Proof.
       revert root vs st0. induction n.
       - intros root vs st0 H. simpl. cbv [edge_upd']. simpl.
@@ -402,7 +422,7 @@ Section __.
           cbv [restriction]. cbv [graph_edge]. intros. rewrite graph.edges_empty.
           simpl. split; [contradiction|]. intros. fwd.
           apply set_contains_iff_In in E. auto.
-        + destruct (graph.edges g root).
+        + Check dfs_fold_state_trans. Search fold_left. destruct (graph.edges g root).
           -- admit.
           -- destruct l. 2: admit. simpl. eexists. split.
              ++ econstructor.
