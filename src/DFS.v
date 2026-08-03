@@ -210,6 +210,38 @@ Section __.
       - rewrite already_seen_finish'. apply (IH x y). exact He.
     Qed.
 
+    Lemma dfs_fold_state_trans root st0 st st' p p' g g' u :
+      dfs_fold_state root st0 st (u :: p) g ->
+      already_seen st0 root = true ->
+      graph.edges g u = [] ->
+      dfs_fold_state u st st' p' g' ->
+      dfs_fold_state root st0 st' (p' ++ p) (graph.union g g').
+    Proof.
+      intros H1 Hroot Hedges H2.
+      induction H2 as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
+                        | st2 u0 p0 g0 v Hrec IH Hne Hseen
+                        | st2 u2 p0 g0 Hrec IH ].
+      - cbn [app]. rewrite graph.union_empty_r. exact H1.
+      - cbn [app]. rewrite graph.union_put_r. apply dfs_tree_edge.
+        + intro Hedge. apply graph_edge_union in Hedge. destruct Hedge as [Hg | Hg0].
+          * pose proof (dfs_target_seen _ _ _ _ _ _ _ H1 Hg) as Hs.
+            pose proof (already_seen_mono _ _ _ _ _ _ Hrec Hs) as Hs2.
+            congruence.
+          * exact (Hne Hg0).
+        + exact IH.
+        + exact Hseen.
+      - cbn [app]. rewrite graph.union_put_r. apply dfs_untree_edge.
+        + exact IH.
+        + intro Hedge. apply graph_edge_union in Hedge. destruct Hedge as [Hg | Hg0].
+          * pose proof (dfs_path_unseen _ _ _ _ _ _ Hrec (in_eq u0 p0)) as Hun.
+            destruct Hun as [-> | Hun].
+            -- cbv [graph_edge] in Hg. rewrite Hedges in Hg. destruct Hg.
+            -- pose proof (dfs_source_seen _ _ _ _ _ _ _ Hroot H1 Hg) as Hsn. congruence.
+          * exact (Hne Hg0).
+        + exact Hseen.
+      - cbn [app] in IH. eapply dfs_finish. exact IH.
+    Qed.
+
   End fold.
 
   Definition tree_edge_accumulate (path_g: list V * graph) (_ : list V) (cur : V) :=
@@ -252,47 +284,6 @@ Section __.
       g_acc.
   Proof. (*TODO*) Admitted.
 
-
-
-    Lemma dfs_fold_state_trans root st0 st st' p p' g g' u :
-      dfs_fold_state root st0 st (u :: p) g ->
-      already_seen st0 root = true ->
-      graph.edges g u = [] ->
-      dfs_fold_state u st st' p' g' ->
-      dfs_fold_state root st0 st' (p' ++ u :: p) (graph.union g g').
-    Proof.
-      intros H1 Hroot Hedges H2.
-      induction H2 as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
-                        | st2 u0 p0 g0 v Hrec IH Hne Hseen
-                        | st2 u2 p0 g0 Hrec IH ].
-      - cbn [app]. rewrite graph.union_empty_r. exact H1.
-      - assert (Hhd : hd root (p0 ++ u :: p) = hd u p0) by (destruct p0; reflexivity).
-        cbn [app]. rewrite graph.union_put_r. rewrite <- Hhd.
-        apply dfs_tree_edge.
-        + rewrite Hhd. intro Hedge. apply graph_edge_union in Hedge.
-          destruct Hedge as [Hg | Hg0].
-          * pose proof (dfs_target_seen _ _ _ _ _ _ _ H1 Hg) as Hs.
-            pose proof (already_seen_mono _ _ _ _ _ _ Hrec Hs) as Hs2.
-            congruence.
-          * exact (Hne Hg0).
-        + exact IH.
-        + exact Hseen.
-      - assert (Hhd : hd root (p0 ++ u :: p) = hd u p0) by (destruct p0; reflexivity).
-        rewrite graph.union_put_r. rewrite <- Hhd.
-        apply dfs_untree_edge.
-        + exact IH.
-        + rewrite Hhd. intro Hedge. apply graph_edge_union in Hedge.
-          destruct Hedge as [Hg | Hg0].
-          * destruct p0 as [|z rest].
-            -- cbv [graph_edge] in Hg. cbn [hd] in Hg. rewrite Hedges in Hg. destruct Hg.
-            -- cbn [hd] in Hg.
-               pose proof (dfs_path_unseen _ _ _ _ _ _ Hrec (in_eq z rest)) as Hun.
-               pose proof (dfs_source_seen _ _ _ _ _ _ _ Hroot H1 Hg) as Hsn.
-               congruence.
-          * exact (Hne Hg0).
-        + exact Hseen.
-      - cbn [app] in IH. eapply dfs_finish. exact IH.
-    Qed.
 
     Lemma dfs_fold'_seen G n st' v :
       already_seen st' v = true -> dfs_fold' G n st' v = untree_edge_upd' st' v.
