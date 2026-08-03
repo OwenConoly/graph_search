@@ -79,11 +79,10 @@ Section __.
       dfs_fold_state _ _ st (u :: p) g ->
       dfs_fold_state _ _ st p g.
 
-    (*define graph.put_edges, graph.union.*)
-    Fail Lemma dfs_fold_state_trans root st0 st st' p p' g g' u :
+    Lemma dfs_fold_state_trans root st0 st st' p p' g g' u :
       dfs_fold_state root st0 st (u :: p) g ->
       dfs_fold_state u st st' p' g' ->
-      dfs_fold_state root st0 st p' (graph.union g g').
+      dfs_fold_state root st0 st' (p' ++ p) (graph.union g g'). *)
 
     Context {ok : graph.ok graph}.
     Context {eqb_ok : Eqb_ok eqbV}.
