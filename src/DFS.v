@@ -95,8 +95,9 @@ Section __.
       intros H. induction 1.
       - simpl. rewrite graph_union_empty_r. assumption.
       - simpl. rewrite graph_union_put_r.
-
-        Print dfs_fold_state.
+        replace (hd u p0) with (hd root (p0 ++ u :: p)).
+        2: { destruct p0; reflexivity. }
+        constructor.
 
         econstructor. replace (graph.union g _) with graph.empty by admit.
       remember (u :: p) as p0 eqn:E. intros H.
