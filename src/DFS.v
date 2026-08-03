@@ -93,8 +93,43 @@ Section __.
       dfs_fold_state _ _ st (u :: p) g ->
       dfs_fold_state _ _ (finish' st u) p g.
 
-    Context {ok : graph.ok graph}.
-    Context {eqb_ok : Eqb_ok eqbV}.
+  End fold.
+
+  Context {ok : graph.ok graph}.
+  Context {eqb_ok : Eqb_ok eqbV}.
+
+  Definition tree_edge_accumulate (path_g: list V * graph) (_ : list V) (cur : V) :=
+    let '(path, g) := path_g in
+    (cur :: path,
+      match path with
+      | [] => g
+      | prev :: _ => graph.put g prev cur
+      end).
+
+  Definition untree_edge_accumulate (path_g: list V * graph) (_ : list V) (cur : V) :=
+    let '(path, g) := path_g in
+    (path,
+      match path with
+      | [] => g
+      | prev :: _ => graph.put g prev cur
+      end).
+
+  Definition finish_accumulate (path_g : list V * graph) (_ : list V) (_ : V) :=
+    let '(path, g) := path_g in
+    (tl path, g).
+
+  Definition graph_accumulator := dfs_fold' tree_edge_accumulate untree_edge_accumulate finish_accumulate.
+
+  Context {state}
+    (untree_edge_upd : state -> list V -> V -> state)
+    (tree_edge_upd : state -> list V -> V -> state).
+
+  Local Notation dfs_fold'0 := (dfs_fold' untree_edge_upd tree_edge_upd).
+
+  Lemma dfs_fold_sound1 root vs n st0 g :
+    dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) [] (graph_accumulator g n (vs, st0) root).
+  Proof. (*TODO*).
+
 
     Lemma graph_edge_union g1 g2 x y :
       graph_edge (graph.union g1 g2) x y <-> graph_edge g1 x y \/ graph_edge g2 x y.
@@ -124,8 +159,9 @@ Section __.
       already_seen st0 y = true ->
       already_seen st y = true.
     Proof.
-      induction 1; eauto using already_seen_tree_edge_upd, already_seen_untree_edge_upd.
-    Qed.
+    (*   induction 1; eauto using already_seen_tree_edge_upd, already_seen_untree_edge_upd. *)
+      (* Qed. *)
+      Admitted.
 
     Lemma dfs_target_seen root st0 st p g x y :
       dfs_fold_state root st0 st p g -> graph_edge g x y -> already_seen st y = true.
@@ -373,25 +409,6 @@ Section __.
 
   End fold.
 
-  Definition accumulate_edge (prev_g : option V * graph) (_ : list V) (cur : V) :=
-    let '(prev, g) := prev_g in
-    (Some cur,
-      match prev with
-      | None => g
-      | Some prev0 => graph.put g prev0 cur
-      end).
-
-  Definition graph_accumulator := dfs_fold' accumulate_edge accumulate_edge.
-
-  Context {state}
-    (untree_edge_upd : state -> list V -> V -> state)
-    (tree_edge_upd : state -> list V -> V -> state).
-
-  Local Notation dfs_fold'0 := (dfs_fold' untree_edge_upd tree_edge_upd).
-
-  Lemma dfs_fold_sound1 root vs n st0 g :
-    dfs_fold_state root (edge_upd' (vs, st0) root) (dfs_fold' g n (vs, st0) root) [] (graph_accumulator g n (vs, st0) root).
-  Proof. (*TODO*).
 
   Lemma dfs_fold_sound root vs n st0 g :
     (forall p v,
