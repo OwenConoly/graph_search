@@ -16,6 +16,15 @@ Proof.
   cbn [fold_left]. apply IH; [apply Hstep; exact HP | exact Hstep].
 Qed.
 
+(* fold_left commutes with a function the step commutes with. *)
+Lemma fold_left_hom {A B} (f : A -> B -> A) (k : A -> A) l :
+  (forall a b, f (k a) b = k (f a b)) ->
+  forall a, fold_left f l (k a) = k (fold_left f l a).
+Proof.
+  intro Hstep. induction l as [|b l' IH]; intro a; [reflexivity|].
+  cbn [fold_left]. rewrite Hstep. apply IH.
+Qed.
+
 (* Binary version: relate two folds over the same list with different steps. *)
 Lemma fold_left_invariant2 {A B C} (P : list C -> A -> B -> Prop)
       (f : A -> C -> A) (h : B -> C -> B) :
@@ -277,6 +286,68 @@ Section __.
     (tl path, g).
 
   Definition graph_accumulator := dfs_fold' untree_edge_accumulate tree_edge_accumulate finish_accumulate.
+
+  Check graph_accumulator.
+  Lemma graph_accumulator_union g n vs p g0 root :
+    let '(vs'', (p'', g'')) := graph_accumulator g n (vs, (p, g0)) root in
+    let '(vs', (p', g')) := graph_accumulator g n (vs, (p, graph.empty)) root in
+    vs'' = vs' /\ p'' = p' /\ g'' = graph.union g0 g'.
+  Proof. Admitted.
+
+  Lemma accum_path_inv g n vs path G w :
+    fst (snd (graph_accumulator g n (vs, (path, G)) w)) = path.
+  Proof.
+    revert vs path G w. unfold graph_accumulator.
+    induction n as [|n' IH]; intros vs path G w; cbn [dfs_fold'].
+    - destruct (already_seen (vs, (path, G)) w);
+        cbn [untree_edge_upd' untree_edge_accumulate fst snd]; destruct path; reflexivity.
+    - destruct (already_seen (vs, (path, G)) w).
+      + cbn [untree_edge_upd' untree_edge_accumulate fst snd]; destruct path; reflexivity.
+      + match goal with
+        | |- context[fold_left ?f ?l ?i] =>
+          assert (Hfold : fst (snd (fold_left f l i)) = w :: path);
+          [ apply (fold_left_invariant (fun _ s => fst (snd s) = w :: path));
+            [ cbn [tree_edge_upd' tree_edge_accumulate fst snd]; destruct path; reflexivity
+            | intros s' c l' Hs'; destruct s' as [vs' [path' G']];
+              cbn [fst snd] in Hs'; subst path'; apply IH ]
+          | ] end.
+        revert Hfold.
+        match goal with
+        | |- _ -> fst (snd (finish' _ ?X _)) = _ => destruct X as [vsf [pathf Gf]]
+        end.
+        cbn [finish' finish_accumulate fst snd]. intros ->. reflexivity.
+  Qed.
+
+  Definition gframe (gacc : graph) (s : list V * (list V * graph)) :=
+    (fst s, (fst (snd s), graph.union gacc (snd (snd s)))).
+
+  Lemma accum_frame g n : forall gacc s w,
+    graph_accumulator g n (gframe gacc s) w = gframe gacc (graph_accumulator g n s w).
+  Proof.
+    unfold graph_accumulator.
+    induction n as [|n' IH]; intros gacc s w; destruct s as [vs [path X]];
+      assert (Hgf : gframe gacc (vs, (path, X)) = (vs, (path, graph.union gacc X))) by reflexivity;
+      rewrite Hgf; cbn [dfs_fold' already_seen].
+    - destruct (set_contains vs w).
+      + cbn [untree_edge_upd' untree_edge_accumulate]. unfold gframe.
+        destruct path; cbn [fst snd];
+          [reflexivity | rewrite graph.union_put_r; reflexivity].
+      + unfold gframe. cbn [fst snd]. reflexivity.
+    - destruct (set_contains vs w).
+      + cbn [untree_edge_upd' untree_edge_accumulate]. unfold gframe.
+        destruct path; cbn [fst snd];
+          [reflexivity | rewrite graph.union_put_r; reflexivity].
+      + assert (Htree : tree_edge_upd' tree_edge_accumulate (vs, (path, graph.union gacc X)) w
+                      = gframe gacc (tree_edge_upd' tree_edge_accumulate (vs, (path, X)) w)).
+        { unfold gframe. destruct path; cbn [tree_edge_upd' tree_edge_accumulate fst snd];
+            [reflexivity | rewrite graph.union_put_r; reflexivity]. }
+        assert (Hfin : forall s0, finish' finish_accumulate (gframe gacc s0) w
+                                = gframe gacc (finish' finish_accumulate s0 w)).
+        { intro s0. destruct s0 as [vs0 [p0 G0]]. unfold gframe.
+          cbn [finish' finish_accumulate fst snd]. reflexivity. }
+        rewrite Htree, (fold_left_hom _ (gframe gacc) _ (fun a b => IH gacc a b)).
+        apply Hfin.
+  Qed.
 
   Context {state}
     (untree_edge_upd : state -> list V -> V -> state)
