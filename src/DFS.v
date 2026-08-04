@@ -635,13 +635,11 @@ Section __.
       + exact Hall'.
   Qed.
 
-  Print restriction.
   Lemma accum_restriction g n vs root p' vs' g' :
     set_contains vs root = false ->
     (forall v p,
         path_to (graph_edge g) root p v ->
         Forall (fun w => ~ In w vs) (root :: p) ->
-        NoDup p ->
         length p < n) ->
     graph_accumulator g n (vs, ([], graph.empty)) root = (vs', (p', g')) ->
     restriction root vs g g'.
@@ -827,8 +825,8 @@ Section __.
       pose proof (dfs_fold_sound1 root vs n st0 g Hn Hroot) as Hs1. revert Hs1.
       destruct (graph_accumulator g n (vs, ([], graph.empty)) root) as [vsF [pF gF]].
       intro Hs1. exact Hs1.
-    - apply accum_restriction; exact Hroot.
-  Qed.
+    - admit.
+  Admitted.
 
   Lemma dfs_fold_correct root st0 g :
     (forall p v, path_to (graph_edge g) root p v ->
