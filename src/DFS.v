@@ -1051,6 +1051,19 @@ Section __.
     - apply accum_restriction; [exact Hroot | exact Hfuel].
   Qed.
 
+  Lemma dfs_fold_correct root st0 g :
+    (forall p v, path_to (graph_edge g) root p v ->
+       length p < S (length (graph.sources g))) ->
+    exists g',
+      dfs_fold_state0 root (edge_upd'0 ([], st0) root)
+        (dfs_fold untree_edge_upd tree_edge_upd finish g st0 root) [] g' /\
+      restriction root [] g g'.
+  Proof.
+    intro Hbound. unfold dfs_fold. apply dfs_fold_sound.
+    - reflexivity.
+    - intros p v Hpt _. exact (Hbound p v Hpt).
+  Qed.
+
   Definition check_tree :=
     dfs_fold (fun _ _ _ => false) (fun tree _ _ => tree).
 End __.
