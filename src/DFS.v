@@ -98,11 +98,12 @@ Section __.
         let '(vs, _) := st' in set_contains vs v.
 
       Fixpoint dfs_fold' n st' v : state' :=
-        if already_seen st' v then untree_edge_upd' st' v else
-          match n with
-          | S n' => finish' (fold_left (dfs_fold' n') (graph.edges g v) (tree_edge_upd' st' v)) v
-          | O => st'
-          end.
+        match n with
+        | S n' =>
+            if already_seen st' v then untree_edge_upd' st' v else
+              finish' (fold_left (dfs_fold' n') (graph.edges g v) (tree_edge_upd' st' v)) v
+        | O => st'
+        end.
 
       Definition dfs_fold st0 := dfs_fold' (S (length (graph.sources g))) ([], st0).
     End with_graph.
