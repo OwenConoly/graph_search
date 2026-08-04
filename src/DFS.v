@@ -1,8 +1,10 @@
 From Stdlib Require Import List Lia.
 From coqutil Require Import Datatypes.List Datatypes.ListSet Eqb.
-From coqutil Require Import Tactics.destr Tactics.Tactics.
+From coqutil Require Import Tactics.destr Tactics.Tactics Tactics.fwd.
 From GraphSearch Require Import GraphInterface.
 Import ListNotations.
+
+
 
 (* Generic; belongs in a list util. Invariant indexed by the unprocessed suffix,
    so the step for the head knows it is still pending. *)
@@ -349,8 +351,66 @@ Section __.
 
   Definition graph_accumulator := dfs_fold' untree_edge_accumulate tree_edge_accumulate finish_accumulate.
 
+  Lemma graph_accumulator_spec g0 n vs path g w vs' path' g' :
+   graph_accumulator g0 n (vs, (path, g)) w = (vs', (path', g')) ->
+    path' = path /\ (forall u v,
+                       graph_edge g' u v <-> graph_edge g u v \/
+                                             In u vs' /\ ~In u vs /\ graph_edge g0 u v \/
+                                             (n > 0 /\ exists path0, path = u :: path0 /\ v = w)).
+  Proof.
+    revert vs path g w vs' path' g'. induction n; intros vs path g w vs' path' g'.
+    - simpl. intros. fwd. admit.
+    - simpl. intros. destruct (set_contains vs w) eqn:Evs.
+      + fwd. split; auto. intros. destruct path'.
+        -- split; auto. intros [H|[H|H]]; fwd; auto.
+           ++ exfalso. auto.
+           ++ discriminate.
+        -- cbv [graph_edge]. rewrite graph.edges_put. split; auto.
+           ++ intros [H|H]; auto. fwd. right. right. split; [lia|eauto].
+           ++ intros [H|[H|H]]; auto.
+              --- fwd. exfalso. auto.
+              --- fwd. auto.
+      + cbv [finish'] in H. Tactics.destruct_one_match_hyp. fwd.
+        cbv [finish_accumulate] in H0. Tactics.destruct_one_match_hyp. fwd.
+        eenough (incl (w :: vs) vs' /\ l = w :: path /\ _). { exact (proj2 (proj2 H)). }
+        revert vs' l g' E. apply fold_left_inv.
+        -- intros. fwd. simpl. split; [apply incl_refl|]. split; [reflexivity|].
+           split; [reflexivity|].
+           intros. destruct path.
+           ++ split; auto. intros [H|[H|H]]; fwd; auto.
+              --- destruct Hp0; subst.
+                  +++ (*easy*) admit.
+                  +++ exfalso. auto.
+              --- discriminate.
+           ++ cbv [graph_edge]. rewrite graph.edges_put. split.
+              --- intros [H|H]; auto. fwd. right. right. split; [lia|eauto].
+              --- intros [H|[H|H]]; auto.
+                  +++ fwd. exfalso. destruct Hp0; auto. subst. (*easy*) admit.
+                  +++ fwd. auto.
+        -- intros. destruct a as [? [? ?]]. specialize (H0 _ _ _ eq_refl).
+           assert (incl l0 vs') by admit.
+           apply IHn in E. fwd. split; [eauto using incl_tran|].
+           split; [reflexivity|]. split; [reflexivity|]. intros. rewrite Ep1.
+           split.
+           ++ intros [H'|[H'|H']].
+              --- apply H0p3 in H'. destruct H' as [H'|[H'|H']]; auto.
+                  right. left. fwd. auto.
+              --- fwd. right. left. ssplit; auto. intro.
+                  Search (incl (_ :: _) _). apply incl_cons_inv in H0p0. fwd.
+                  auto.
+              --- fwd. right. left. ssplit; auto.
+                  +++ apply incl_cons_inv in H0p0. fwd. auto.
+                  +++ (*easy*) admit.
+           ++ intros [H'|[H'|H']].
+              --- rewrite H0p3. auto.
+              --- assert (In u l0 \/ ~In u l0) as [?|?] by admit.
+                  +++ fwd. rewrite H0p3. auto 10.
+                  +++ fwd. rewrite H0p3. auto 10.
+              --- fwd. rewrite H0p3. left. eauto 10.
+  Admitted.
+
   Lemma accum_path_inv g n vs path G w :
-    fst (snd (graph_accumulator g n (vs, (path, G)) w)) = path.
+    fst (snd ()) = path.
   Proof.
     revert vs path G w. unfold graph_accumulator.
     induction n as [|n' IH]; intros vs path G w; cbn [dfs_fold'].
@@ -649,9 +709,6 @@ Section __.
         destruct F as [vsF sF] end.
       cbn [finish' fst]. exact (fun h => h).
   Qed.
-
-  From coqutil Require Import Tactics.fwd.
-
 
   Lemma incl_cons A (a : A) l :
     incl l (a :: l).
