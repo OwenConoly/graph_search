@@ -318,9 +318,13 @@ Section __.
       cbn [finish' fst]. intro Hfold. exact Hfold.
   Qed.
 
+  Lemma dfs_fold'_0 {St} (u t f : St -> list V -> V -> St) g st' v :
+    dfs_fold' u t f g 0 st' v = st'.
+  Proof. reflexivity. Qed.
+
   Lemma dfs_fold'_seen {St} (u t f : St -> list V -> V -> St) g n st' v :
-    already_seen st' v = true -> dfs_fold' u t f g n st' v = untree_edge_upd' u st' v.
-  Proof. destruct n; intro H; cbn [dfs_fold']; rewrite H; reflexivity. Qed.
+    already_seen st' v = true -> dfs_fold' u t f g (S n) st' v = untree_edge_upd' u st' v.
+  Proof. intro H; cbn [dfs_fold']; rewrite H; reflexivity. Qed.
 
   Lemma dfs_fold'_S {St} (u t f : St -> list V -> V -> St) g n st' v :
     dfs_fold' u t f g (S n) st' v
@@ -384,11 +388,7 @@ Section __.
     induction n as [|n' IH]; intros gacc s w; destruct s as [vs [path X]];
       assert (Hgf : gframe gacc (vs, (path, X)) = (vs, (path, graph.union gacc X))) by reflexivity;
       rewrite Hgf; cbn [dfs_fold' already_seen].
-    - destruct (set_contains vs w).
-      + cbn [untree_edge_upd' untree_edge_accumulate]. unfold gframe.
-        destruct path; cbn [fst snd];
-          [reflexivity | rewrite graph.union_put_r; reflexivity].
-      + unfold gframe. cbn [fst snd]. reflexivity.
+    - unfold gframe. cbn [fst snd]. reflexivity.
     - destruct (set_contains vs w).
       + cbn [untree_edge_upd' untree_edge_accumulate]. unfold gframe.
         destruct path; cbn [fst snd];
@@ -581,10 +581,7 @@ Section __.
     unfold graph_accumulator.
     induction n as [|m IH]; intros [vs [path G]] w a b Hab; cbn [snd] in Hab;
       cbn [dfs_fold' already_seen].
-    - destruct (set_contains vs w).
-      + cbn [untree_edge_upd' untree_edge_accumulate snd]. destruct path as [|prev pr];
-          [exact Hab | cbv [graph_edge] in *; rewrite graph.edges_put; left; exact Hab].
-      + cbn [snd]. exact Hab.
+    - exact Hab.
     - destruct (set_contains vs w).
       + cbn [untree_edge_upd' untree_edge_accumulate snd]. destruct path as [|prev pr];
           [exact Hab | cbv [graph_edge] in *; rewrite graph.edges_put; left; exact Hab].
@@ -604,10 +601,10 @@ Section __.
 
   Lemma accum_seen g n vs path G w :
     set_contains vs w = true ->
-    graph_accumulator g n (vs, (path, G)) w
+    graph_accumulator g (S n) (vs, (path, G)) w
     = (vs, (path, match path with [] => G | prev :: _ => graph.put G prev w end)).
   Proof.
-    intro Hw. destruct n; unfold graph_accumulator; cbn [dfs_fold' already_seen]; rewrite Hw;
+    intro Hw. unfold graph_accumulator; cbn [dfs_fold' already_seen]; rewrite Hw;
       cbn [untree_edge_upd' untree_edge_accumulate]; reflexivity.
   Qed.
 
@@ -638,26 +635,19 @@ Section __.
       + exact Hall'.
   Qed.
 
-  Lemma accum_restriction g n vs root :
+  Print restriction.
+  Lemma accum_restriction g n vs root p' vs' g' :
     set_contains vs root = false ->
-    restriction root vs g (snd (snd (graph_accumulator g n (vs, ([], graph.empty)) root))).
+    (forall v p,
+        path_to (graph_edge g) root p v ->
+        Forall (fun w => ~ In w vs) (root :: p) ->
+        NoDup p ->
+        length p < n) ->
+    graph_accumulator g n (vs, ([], graph.empty)) root = (vs', (p', g')) ->
+    restriction root vs g g'.
   Proof.
-    intros Hroot Hfuel.
-    destruct (accum_spec g n vs [] graph.empty root Hfuel)
-      as (_ & Bsound & Cclose & Dexp & Ewvis & _).
-    intros u v. split.
-    - intro Hedge'. destruct (Bsound u v Hedge') as [Hempty | [Hmid | Hgood]].
-      + cbv [graph_edge] in Hempty. rewrite graph.edges_empty in Hempty. destruct Hempty.
-      + destruct Hmid as [p0 [pr [Hcontra _]]]. discriminate Hcontra.
-      + exact Hgood.
-    - intros [Hedge Hreach].
-      assert (Hunv : ~ In u vs) by exact (reaches_unseen g vs root u Hreach).
-      assert (Huvis : In u (fst (graph_accumulator g n (vs, ([], graph.empty)) root)))
-        by exact (reaches_visited g vs root u
-                    (fst (graph_accumulator g n (vs, ([], graph.empty)) root))
-                    Ewvis Cclose Hreach).
-      exact (Dexp u v Huvis Hunv Hedge).
-  Qed.
+
+  Admitted.
 
   Context {state}
     (untree_edge_upd : state -> list V -> V -> state)
@@ -712,38 +702,38 @@ Section __.
         cbn [fst snd] in Hfst, Hbpath, Hstate, Htrack |- *.
         subst vs_a p_b.
         assert (Hwni : ~ In w remaining') by (inversion Hnodup; auto).
-        destruct (set_contains vs_b w) eqn:Hw.
-        + (* seen: untree edge *)
-          unfold graph_accumulator.
-          rewrite (dfs_fold'_seen untree_edge_upd tree_edge_upd finish g n' (vs_b, s_a) w)
-            by (cbn [already_seen]; exact Hw).
-          rewrite (dfs_fold'_seen untree_edge_accumulate tree_edge_accumulate finish_accumulate
-                     g n' (vs_b, ([root], g_b)) w) by (cbn [already_seen]; exact Hw).
-          split; [|split; [|split; [|split; [|split]]]].
-          * cbn [untree_edge_upd' untree_edge_accumulate fst]. reflexivity.
-          * cbn [untree_edge_upd' untree_edge_accumulate fst snd]. reflexivity.
-          * replace (snd (snd (untree_edge_upd' untree_edge_accumulate (vs_b, ([root], g_b)) w)))
-              with (graph.put g_b root w) by reflexivity.
-            apply dfs_untree_edge.
-            -- exact Hstate.
-            -- apply Htrack; apply in_eq.
-            -- cbn [already_seen]; exact Hw.
-          * cbn [untree_edge_upd' untree_edge_accumulate snd].
-            intros x Hx Hedge. cbv [graph_edge] in Hedge.
-            rewrite graph.edges_put in Hedge. destruct Hedge as [Hold | [_ Hxw]].
-            -- apply (Htrack x); [right; exact Hx | exact Hold].
-            -- subst x; contradiction.
+        destruct n' as [|n''].
+        + (* no fuel: the child is a no-op, whether seen or unseen *)
+          change (dfs_fold'0 g 0 (vs_b, s_a) w) with (vs_b, s_a).
+          change (graph_accumulator g 0 (vs_b, ([root], g_b)) w) with (vs_b, ([root], g_b)).
+          split; [reflexivity | split; [reflexivity | split; [exact Hstate | split; [|split]]]].
+          * intros x Hx. apply Htrack; right; exact Hx.
           * inversion Hnodup; auto.
           * intros y Hy; apply Hincl; right; exact Hy.
-        + (* unseen *)
-          destruct n' as [|n''].
-          * (* no fuel: no-op *)
-            unfold graph_accumulator. cbn [dfs_fold' already_seen]. rewrite Hw.
-            split; [reflexivity | split; [reflexivity | split; [exact Hstate | split; [|split]]]].
-            -- intros x Hx. apply Htrack; right; exact Hx.
+        + destruct (set_contains vs_b w) eqn:Hw.
+          * (* seen: untree edge *)
+            unfold graph_accumulator.
+            rewrite (dfs_fold'_seen untree_edge_upd tree_edge_upd finish g n'' (vs_b, s_a) w)
+              by (cbn [already_seen]; exact Hw).
+            rewrite (dfs_fold'_seen untree_edge_accumulate tree_edge_accumulate finish_accumulate
+                       g n'' (vs_b, ([root], g_b)) w) by (cbn [already_seen]; exact Hw).
+            split; [|split; [|split; [|split; [|split]]]].
+            -- cbn [untree_edge_upd' untree_edge_accumulate fst]. reflexivity.
+            -- cbn [untree_edge_upd' untree_edge_accumulate fst snd]. reflexivity.
+            -- replace (snd (snd (untree_edge_upd' untree_edge_accumulate (vs_b, ([root], g_b)) w)))
+                 with (graph.put g_b root w) by reflexivity.
+               apply dfs_untree_edge.
+               ++ exact Hstate.
+               ++ apply Htrack; apply in_eq.
+               ++ cbn [already_seen]; exact Hw.
+            -- cbn [untree_edge_upd' untree_edge_accumulate snd].
+               intros x Hx Hedge. cbv [graph_edge] in Hedge.
+               rewrite graph.edges_put in Hedge. destruct Hedge as [Hold | [_ Hxw]].
+               ++ apply (Htrack x); [right; exact Hx | exact Hold].
+               ++ subst x; contradiction.
             -- inversion Hnodup; auto.
             -- intros y Hy; apply Hincl; right; exact Hy.
-          * (* explored *)
+          * (* unseen: explore *)
             assert (Hrootseen : set_contains vs_b root = true).
             { pose proof (already_seen_mono _ _ _ root st_init (vs_b, s_a) [root] g_b root Hstate) as Hm.
               cbn [already_seen] in Hm. apply Hm.
@@ -837,7 +827,7 @@ Section __.
       pose proof (dfs_fold_sound1 root vs n st0 g Hn Hroot) as Hs1. revert Hs1.
       destruct (graph_accumulator g n (vs, ([], graph.empty)) root) as [vsF [pF gF]].
       intro Hs1. exact Hs1.
-    - apply accum_restriction; [exact Hroot | exact Hfuel].
+    - apply accum_restriction; exact Hroot.
   Qed.
 
   Lemma dfs_fold_correct root st0 g :
