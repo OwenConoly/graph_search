@@ -424,38 +424,6 @@ Section __.
     apply (existsb_eqb_in (aeqb_dec := @eqb_boolspec V eqbV eqb_ok)).
   Qed.
 
-  Definition reaches g vs s u :=
-    exists p, path_to (graph_edge g) s p u /\ Forall (fun w => ~ In w vs) (s :: p).
-
-  Lemma reaches_mono g vs1 vs2 s u :
-    incl vs1 vs2 -> reaches g vs2 s u -> reaches g vs1 s u.
-  Proof.
-    intros Hincl [p [Hpath Hall]]. exists p. split; [exact Hpath|].
-    eapply Forall_impl; [|exact Hall]. cbn beta.
-    intros x Hx2 Hx1. apply Hx2, Hincl, Hx1.
-  Qed.
-
-  Lemma reaches_refl g vs w :
-    ~ In w vs -> reaches g vs w w.
-  Proof.
-    intro Hw. exists []. split.
-    - unfold path_to. cbn [path last]. split; [exact I | reflexivity].
-    - constructor; [exact Hw | constructor].
-  Qed.
-
-  Lemma reaches_cons g vs w c u :
-    ~ In w vs -> graph_edge g w c -> reaches g vs c u -> reaches g vs w u.
-  Proof.
-    intros Hw Hedge [p [[Hpath Hlast] Hall]]. exists (c :: p). split.
-    - unfold path_to. cbn [path]. split.
-      + split; [exact Hedge | exact Hpath].
-      + rewrite last_cons. exact Hlast.
-    - constructor; [exact Hw | exact Hall].
-  Qed.
-
-  Definition restriction root vs g g' :=
-    forall u v, graph_edge g' u v <-> graph_edge g u v /\ reaches g vs root u.
-
   Lemma accum_visited_mono g n : forall s w a,
     In a (fst s) -> In a (fst (graph_accumulator g n s w)).
   Proof.
@@ -478,68 +446,13 @@ Section __.
         cbn [finish' fst]. exact (fun h => h).
   Qed.
 
-  Lemma accum_graph_mono g n : forall s w a b,
-    graph_edge (snd (snd s)) a b ->
-    graph_edge (snd (snd (graph_accumulator g n s w))) a b.
-  Proof.
-    unfold graph_accumulator.
-    induction n as [|m IH]; intros [vs [path G]] w a b Hab; cbn [snd] in Hab;
-      cbn [dfs_fold' already_seen].
-    - exact Hab.
-    - destruct (set_contains vs w).
-      + cbn [untree_edge_upd' untree_edge_accumulate snd]. destruct path as [|prev pr];
-          [exact Hab | cbv [graph_edge] in *; rewrite graph.edges_put; left; exact Hab].
-      + assert (HGF : graph_edge (snd (snd (fold_left
-            (dfs_fold' untree_edge_accumulate tree_edge_accumulate finish_accumulate g m)
-            (graph.edges g w) (tree_edge_upd' tree_edge_accumulate (vs, (path, G)) w)))) a b).
-        { apply (fold_left_invariant (fun _ st => graph_edge (snd (snd st)) a b)).
-          - cbn [tree_edge_upd' tree_edge_accumulate snd]. destruct path as [|prev pr];
-              [exact Hab | cbv [graph_edge] in *; rewrite graph.edges_put; left; exact Hab].
-          - intros st c l' Hst. apply IH. exact Hst. }
-        revert HGF.
-        match goal with |- graph_edge (snd (snd ?X)) a b ->
-                           graph_edge (snd (snd (finish' _ ?X _))) a b =>
-          destruct X as [vsX [pX GX]] end.
-        cbn [finish' finish_accumulate snd]. exact (fun h => h).
-  Qed.
-
-  Lemma accum_seen g n vs path G w :
-    set_contains vs w = true ->
-    graph_accumulator g (S n) (vs, (path, G)) w
-    = (vs, (path, match path with [] => G | prev :: _ => graph.put G prev w end)).
-  Proof.
-    intro Hw. unfold graph_accumulator; cbn [dfs_fold' already_seen]; rewrite Hw;
-      cbn [untree_edge_upd' untree_edge_accumulate]; reflexivity.
-  Qed.
-
-  Lemma reaches_unseen g vs s u :
-    reaches g vs s u -> ~ In u vs.
-  Proof.
-    intros [p [[Hpath Hlast] Hall]] Hin. subst u.
-    rewrite Forall_forall in Hall.
-    assert (Hlp : In (last p s) (s :: p)).
-    { destruct p as [|a p']; [left; reflexivity | right; apply In_last; discriminate]. }
-    exact (Hall (last p s) Hlp Hin).
-  Qed.
-
-  Print reaches.
-
-  Lemma reaches_visited g vs s a vs' :
-    In s vs' ->
-    (forall x y, In x vs' -> ~ In x vs -> graph_edge g x y -> In y vs') ->
-    reaches g vs s a -> In a vs'.
-  Proof.
-    intros Hs Hclose [p [Hpt Hall]]. revert s Hs Hpt Hall.
-    induction p as [|c p' IH]; intros s Hs [Hpath Hlast] Hall.
-    - cbn [last] in Hlast. subst a. exact Hs.
-    - cbn [path] in Hpath. destruct Hpath as [Hedge Hpathc].
-      pose proof (Forall_inv Hall) as Hs_nvs.
-      pose proof (Forall_inv_tail Hall) as Hall'.
-      assert (Hcvs' : In c vs') by exact (Hclose s c Hs Hs_nvs Hedge).
-      apply (IH c Hcvs').
-      + split; [exact Hpathc | rewrite last_cons in Hlast; exact Hlast].
-      + exact Hall'.
-  Qed.
+  Lemma graph_accumulator_S g m vs path G w :
+    graph_accumulator g (S m) (vs, (path, G)) w
+    = if set_contains vs w
+      then untree_edge_upd' untree_edge_accumulate (vs, (path, G)) w
+      else finish' finish_accumulate (fold_left (graph_accumulator g m) (graph.edges g w)
+             (tree_edge_upd' tree_edge_accumulate (vs, (path, G)) w)) w.
+  Proof. reflexivity. Qed.
 
   Lemma accum_visited_self g m vs path G c :
     0 < m -> In c (fst (graph_accumulator g m (vs, (path, G)) c)).
@@ -603,53 +516,8 @@ Section __.
            specialize (IH H0 H1 He). auto.
   Admitted.
 
-  Lemma accum_reaches_visited g n vs root :
-    set_contains vs root = false ->
-    (forall p v, path_to (graph_edge g) root p v ->
-       Forall (fun w => ~ In w vs) (root :: p) -> NoDup (root :: p) -> length p < n) ->
-    forall u, reaches g vs root u ->
-      In u (fst (graph_accumulator g n (vs, ([], graph.empty)) root)).
-  Proof.
-    intros Hroot Hfuel u Hreach.
-    assert (Hrootvs : ~ In root vs)
-      by (intro Hin; apply set_contains_iff_In in Hin; congruence).
-    apply (reaches_visited g vs root u
-             (fst (graph_accumulator g n (vs, ([], graph.empty)) root))).
-    - assert (Hn : 0 < n).
-      { pose proof (Hfuel [] root
-          ltac:(split; [exact I | reflexivity])
-          ltac:(constructor; [exact Hrootvs | constructor])
-          ltac:(constructor; [apply in_nil | constructor])) as Hlen.
-        cbn [length] in Hlen. lia. }
-      apply (accum_visited_self g n vs [] graph.empty root Hn).
-    - exact (accum_visited_closed g n vs root Hfuel).
-    - exact Hreach.
-  Qed.
-
-  Lemma accum_restriction g n vs root p' vs' g' :
-    set_contains vs root = false ->
-    (forall v p,
-        path_to (graph_edge g) root p v ->
-        Forall (fun w => ~ In w vs) (root :: p) ->
-        length p < n) ->
-    graph_accumulator g n (vs, ([], graph.empty)) root = (vs', (p', g')) ->
-    forall u v,
-      graph_edge g u v ->
-      reaches g vs root u ->
-      graph_edge g' u v.
-  Proof.
-    revert vs root p' vs' g'.
-    induction n; intros vs root p' vs' g' Hroot Hpaths H u v Hedge Hreach.
-    - simpl in H. fwd. assert (~set_contains vs' root = true) as Hroot' by congruence.
-      rewrite set_contains_iff_In in Hroot'.
-      specialize (Hpaths root []). especialize Hpaths.
-      + cbv [path_to]. simpl. auto.
-      + auto.
-      + simpl in *. lia.
-    - simpl in H. rewrite Hroot in H. cbv [reaches] in Hreach. fwd.
-      cbv [path_to] in Hreachp0. fwd. destruct p.
-      + simpl in *. (*easy*) admit.
-      + simpl in Hreachp0p0. fwd. in Hreach simpl.
+  (*TODO*)
+  (*from accum_visited_self we get that *)
 
   Context {state}
     (untree_edge_upd : state -> list V -> V -> state)
