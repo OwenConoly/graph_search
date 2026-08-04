@@ -159,47 +159,42 @@ Section __.
       already_seen st0 y = true ->
       already_seen st y = true.
     Proof.
-      induction 1 as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
-                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
-                       | st2 u2 p0 g0 Hrec IH ]; intro Hy.
-      - exact Hy.
-      - apply already_seen_tree_edge_upd. apply IH. exact Hy.
-      - rewrite already_seen_untree_edge_upd. apply IH. exact Hy.
-      - rewrite already_seen_finish'. apply IH. exact Hy.
+      induction 1; intros.
+      - assumption.
+      - apply already_seen_tree_edge_upd. eauto.
+      - rewrite already_seen_untree_edge_upd. eauto.
+      - rewrite already_seen_finish'. eauto.
     Qed.
 
+    Hint Unfold graph_edge : core.
     Lemma dfs_target_seen root st0 st p g x y :
       dfs_fold_state root st0 st p g -> graph_edge g x y -> already_seen st y = true.
     Proof.
       intro H. revert x y.
-      induction H as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
-                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
-                       | st2 u2 p0 g0 Hrec IH ]; intros x y He; cbv [graph_edge] in He.
-      - rewrite graph.edges_empty in He. destruct He.
+      induction H; intros x y He; cbv [graph_edge] in He.
+      - rewrite graph.edges_empty in He. contradiction.
       - rewrite graph.edges_put in He. destruct He as [Hold | [_ Hvy]].
-        + apply already_seen_tree_edge_upd. apply (IH x y). exact Hold.
+        + apply already_seen_tree_edge_upd. eauto.
         + subst y. apply already_seen_tree_edge_upd_self.
       - rewrite graph.edges_put in He. rewrite already_seen_untree_edge_upd.
-        destruct He as [Hold | [_ Hvy]].
-        + apply (IH x y). exact Hold.
-        + subst y. exact Hseen.
-      - rewrite already_seen_finish'. apply (IH x y). exact He.
+        destruct He as [Hold | [_ Hvy]]; subst; eauto.
+      - rewrite already_seen_finish'. eauto.
     Qed.
 
     Lemma dfs_path_seen root st0 st p g z :
       already_seen st0 root = true ->
-      dfs_fold_state root st0 st p g -> In z p -> already_seen st z = true.
+      dfs_fold_state root st0 st p g ->
+      In z p ->
+      already_seen st z = true.
     Proof.
       intros Hroot H. revert z.
-      induction H as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
-                       | st2 u0 p0 g0 v Hrec IH Hne Hseen
-                       | st2 u2 p0 g0 Hrec IH ]; intros z Hz.
-      - destruct Hz as [<- | []]. exact Hroot.
-      - destruct Hz as [<- | Hz].
-        + apply already_seen_tree_edge_upd_self.
-        + apply already_seen_tree_edge_upd. apply IH. exact Hz.
-      - rewrite already_seen_untree_edge_upd. apply IH. exact Hz.
-      - rewrite already_seen_finish'. apply IH. right. exact Hz.
+      induction H; intros z Hz.
+      - destruct Hz; subst; contradiction || auto.
+      - destruct Hz as [Hz|Hz].
+        + subst. apply already_seen_tree_edge_upd_self.
+        + apply already_seen_tree_edge_upd. eauto.
+      - rewrite already_seen_untree_edge_upd. eauto.
+      - rewrite already_seen_finish'. simpl in *. eauto.
     Qed.
 
     Lemma dfs_path_unseen root st0 st p g z :
@@ -617,6 +612,8 @@ Section __.
     { destruct p as [|a p']; [left; reflexivity | right; apply In_last; discriminate]. }
     exact (Hall (last p s) Hlp Hin).
   Qed.
+
+  Print reaches.
 
   Lemma reaches_visited g vs s a vs' :
     In s vs' ->
