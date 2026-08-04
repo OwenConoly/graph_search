@@ -3,4 +3,5 @@
 -Q src GraphSearch
 
 src/GraphInterface.v
+src/GraphImpl.v
 src/DFS.v
