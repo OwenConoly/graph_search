@@ -4,18 +4,19 @@ From coqutil Require Import Tactics.destr Tactics.Tactics Tactics.fwd.
 From GraphSearch Require Import GraphInterface.
 Import ListNotations.
 
+Lemma fold_right_inv {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a :
+  P [] a ->
+  (forall a' b l', P l' a' -> P (b :: l') (f b a')) ->
+  P l (fold_right f a l).
+Proof. intros. induction l; simpl; auto. Qed.
 
-
-(* Generic; belongs in a list util. Invariant indexed by the unprocessed suffix,
-   so the step for the head knows it is still pending. *)
-Lemma fold_left_invariant {A B} (P : list B -> A -> Prop) (f : A -> B -> A) :
-  forall l a,
-    P l a ->
-    (forall a' b l', P (b :: l') a' -> P l' (f a' b)) ->
-    P [] (fold_left f l a).
+Lemma fold_right_inv_NoDup {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a :
+  NoDup l ->
+  P [] a ->
+  (forall a' b l', ~In b l' -> P l' a' -> P (b :: l') (f b a')) ->
+  P l (fold_right f a l).
 Proof.
-  induction l as [|b l' IH]; intros a HP Hstep; [exact HP|].
-  cbn [fold_left]. apply IH; [apply Hstep; exact HP | exact Hstep].
+  intros H ? ?. induction l; simpl; auto. inversion_clear H. eauto.
 Qed.
 
 (* fold_left commutes with a function the step commutes with. *)
@@ -286,38 +287,99 @@ Section __.
       - cbn [app] in IH. eapply dfs_finish. exact IH.
     Qed.
 
+    Definition graph_corresp vs vs' g g_acc :=
+      forall u v,
+        graph_edge g u v ->
+        In u vs' ->
+        ~ In u vs ->
+        graph_edge g_acc u v.
+
+    Definition weak_graph_corresp root root_edges vs vs' g g_acc :=
+      (forall u v,
+        graph_edge g u v ->
+        In u vs' ->
+        ~ In u vs ->
+        u <> root ->
+        graph_edge g_acc u v) /\
+        (forall v, graph_edge g_acc root v <-> In v root_edges).
+
+    Print path. Print reachable.
+    Definition no_long_paths g root vs n :=
+      forall p,
+        path (graph_edge g) root p ->
+        NoDup p ->
+        Forall (fun v => ~In v vs) p ->
+        S (length p) < n.
+
+    Lemma dfs_fold_sound1 root vs n st0 g vs' st' :
+      no_long_paths g root vs n ->
+      set_contains vs root = false ->
+      dfs_fold' g n (vs, st0) root = (vs', st') ->
+      exists g_acc,
+        dfs_fold_state root (edge_upd' (vs, st0) root) (vs', st') [] g_acc /\
+          graph_corresp vs vs' g g_acc.
+    Proof.
+      revert root vs st0 vs' st'. induction n.
+      { intros *. intros Hn. exfalso. cbv [no_long_paths] in Hn.
+        specialize (Hn []). simpl in Hn.
+        specialize (Hn ltac:(constructor) ltac:(constructor) ltac:(constructor)).
+        lia. }
+      intros root vs st0 vs' st' Hn Hroot H.
+      assert (n <> 0).
+      { intro. subst. cbv [no_long_paths] in Hn. specialize (Hn []).
+        specialize (Hn ltac:(constructor) ltac:(constructor) ltac:(constructor)).
+        lia. }
+      simpl in H. cbv [edge_upd']. simpl. rewrite Hroot in *.
+      cbv [finish'] in H. Tactics.destruct_one_match_hyp. fwd.
+      eenough (exists g_acc, _ /\ weak_graph_corresp root (rev (graph.edges g root)) vs vs' g g_acc) as [g_acc H].
+      { exists g_acc. split.
+        - apply dfs_finish with (st := (_, _)). eapply (proj1 H).
+        - destruct H as [_ H].
+          cbv [graph_corresp]. intros.
+          cbv [weak_graph_corresp] in H. fwd.
+          assert (u = root \/ u <> root) as [Hu|Hu] by admit.
+          { subst. apply Hp1. rewrite <- in_rev. assumption. }
+          apply Hp0; assumption. }
+      rewrite <- fold_left_rev_right in E.
+      revert vs' s E.
+      apply fold_right_inv_NoDup.
+      - apply NoDup_rev. apply graph.edges_NoDup.
+      - intros. fwd. eexists. split; [constructor|].
+        cbv [weak_graph_corresp]. split; cycle 1.
+        { cbv [graph_edge]. rewrite graph.edges_empty. simpl. intros. split; auto. }
+        intros. exfalso. destruct H1; subst; auto.
+      - intros * Hnotin H * Hdfs. destruct a'. specialize (H _ _ eq_refl). fwd.
+        simpl in Hdfs.
+        destruct (set_contains l b) eqn:Eb.
+        { destruct n; [lia|]. simpl in Hdfs. rewrite Eb in Hdfs. fwd.
+          eexists. split.
+          - apply dfs_untree_edge with (st := (_, _)).
+            + eassumption.
+            + intro. apply Hnotin. cbv [weak_graph_corresp] in Hp1. fwd.
+              apply Hp1p1. assumption.
+            + simpl. assumption.
+          - cbv [weak_graph_corresp] in *. fwd. split.
+            + intros. cbv [graph_edge]. rewrite graph.edges_put. left.
+              apply Hp1p0; auto.
+            + intros. cbv [graph_edge]. rewrite graph.edges_put.
+              cbv [graph_edge] in Hp1p1. rewrite Hp1p1.
+              simpl. split; intros [?|?]; fwd; auto. }
+        apply IHn in Hdfs.
+        fwd.
+        Tactics.destruct_one_match_hyp. fwd.
+        fwd.
+              constructor.
+          cbv [dfs_fold'] in E.
+
+        eexists.
+        + constructor.
+      destruct (set_contains vs root) eqn:Eroot.
+      - fwd. eexists. split.
+        + Print dfs_fold_state. econstructor. fwd. exists graph.empty. split.
+        - pose proof dfs_finish. Print dfs_fold_state. constructor.
+
+
   End fold.
-
-  (* The visited-set (fst) evolves independently of the state payload and ops. *)
-  Lemma dfs_fold'_fst {S1 S2}
-    (u1 t1 f1 : S1 -> list V -> V -> S1) (u2 t2 f2 : S2 -> list V -> V -> S2) g m :
-    forall (st1 : list V * S1) (st2 : list V * S2) w,
-      fst st1 = fst st2 ->
-      fst (dfs_fold' u1 t1 f1 g m st1 w) = fst (dfs_fold' u2 t2 f2 g m st2 w).
-  Proof.
-    induction m as [|m' IH]; intros st1 st2 w Hfst;
-      destruct st1 as [vs1 s1], st2 as [vs2 s2]; cbn [fst] in Hfst; subst vs2;
-      cbn [dfs_fold' already_seen].
-    - destruct (set_contains vs1 w); reflexivity.
-    - destruct (set_contains vs1 w); [reflexivity|].
-      assert (Hfold : fst (fold_left (dfs_fold' u1 t1 f1 g m') (graph.edges g w)
-                            (tree_edge_upd' t1 (vs1, s1) w))
-                    = fst (fold_left (dfs_fold' u2 t2 f2 g m') (graph.edges g w)
-                            (tree_edge_upd' t2 (vs1, s2) w))).
-      { apply (fold_left_invariant2 (fun _ a b => fst a = fst b)).
-        - reflexivity.
-        - intros a b c l' Hab. apply IH. exact Hab. }
-      revert Hfold.
-      destruct (fold_left (dfs_fold' u1 t1 f1 g m') (graph.edges g w)
-                  (tree_edge_upd' t1 (vs1, s1) w)) as [vA sA].
-      destruct (fold_left (dfs_fold' u2 t2 f2 g m') (graph.edges g w)
-                  (tree_edge_upd' t2 (vs1, s2) w)) as [vB sB].
-      cbn [finish' fst]. intro Hfold. exact Hfold.
-  Qed.
-
-  Lemma dfs_fold'_0 {St} (u t f : St -> list V -> V -> St) g st' v :
-    dfs_fold' u t f g 0 st' v = st'.
-  Proof. reflexivity. Qed.
 
   Lemma dfs_fold'_seen {St} (u t f : St -> list V -> V -> St) g n st' v :
     already_seen st' v = true -> dfs_fold' u t f g (S n) st' v = untree_edge_upd' u st' v.
@@ -528,17 +590,6 @@ Section __.
   Local Notation edge_upd'0 := (edge_upd' untree_edge_upd tree_edge_upd).
   Local Notation dfs_fold_state0 := (dfs_fold_state untree_edge_upd tree_edge_upd finish).
 
-  Lemma dfs_fold_sound1 root vs n st0 g :
-    0 < n ->
-    already_seen (vs, st0) root = false ->
-    let '(_, (_, g_acc)) := graph_accumulator g n (vs, ([], graph.empty)) root in
-    dfs_fold_state0 root
-      (edge_upd'0 (vs, st0) root)
-      (dfs_fold'0 g n (vs, st0) root)
-      []
-      g_acc.
-  Proof.
-    revert root vs st0. induction n as [|n' IH]; intros root vs st0 Hn Hroot; [lia|].
     cbn [already_seen] in Hroot.
     assert (Hedgeupd : edge_upd'0 (vs, st0) root = tree_edge_upd' tree_edge_upd (vs, st0) root).
     { unfold edge_upd'. cbn [already_seen]. rewrite Hroot. reflexivity. }
