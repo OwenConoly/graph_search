@@ -512,25 +512,24 @@ Section __.
   Lemma visited_closed g n vs root u v st vs' st' :
     no_long_paths g root vs n ->
     dfs_fold' g n (vs, st) root = (vs', st') ->
-    ~ In u vs ->
     In u vs' ->
     graph_edge g u v ->
-    In v vs'.
+    In u vs \/ In v vs'.
   Proof.
     revert vs root u v st vs' st'.
-    induction n as [|m IH]; intros vs root u v st vs' st' Hn H Hu1 Hu2 He.
-    - simpl in *. fwd. contradiction.
+    induction n as [|m IH]; intros vs root u v st vs' st' Hn H Hu He.
+    - simpl in *. fwd. auto.
     - simpl in H. destruct (set_contains vs root) eqn:Hroot.
-      + fwd. contradiction.
+      + fwd. auto.
       + cbv [finish'] in *. Tactics.destruct_one_match_hyp. fwd.
-        enough ((In u vs' -> u = root /\ (In v (rev (graph.edges g root)) -> In v vs') \/ In v vs') /\ incl vs vs' /\ In root vs').
-        { fwd. apply Hp0 in Hu2. rewrite <- in_rev in Hu2. destruct Hu2; fwd; auto. }
-        clear Hu2. revert E. rewrite <- fold_left_rev_right.
+        enough ((In u vs' -> In u vs \/ u = root /\ (In v (rev (graph.edges g root)) -> In v vs') \/ In v vs') /\ incl vs vs' /\ In root vs').
+        { fwd. apply Hp0 in Hu. rewrite <- in_rev in Hu.
+          destruct Hu as [?|[?|?]]; fwd; auto. }
+        clear Hu. revert E. rewrite <- fold_left_rev_right.
         revert vs' s. apply fold_right_inv_NoDup.
         -- apply NoDup_rev. apply graph.edges_NoDup.
-        -- intros. fwd. ssplit; simpl; auto using incl_cons. intros [Hx|Hx]; subst.
-           ++ left. split; auto. contradiction.
-           ++ contradiction.
+        -- intros. fwd. ssplit; simpl; auto using incl_cons. intros [Hx|Hx]; subst; auto.
+           right. left. split; auto. contradiction.
         -- intros. destruct a'. specialize (H1 _ _ eq_refl). fwd.
            specialize IH with (2 := E).
            eassert (blah : _). 2: specialize IH with (1 := blah).
@@ -545,11 +544,9 @@ Section __.
            pose proof E as E'. apply dfs_fold'_mono in E.
            apply dfs_fold'_self in E'; [|lia].
            ssplit; eauto using incl_tran.
-           intros.
-           assert (In u l \/ ~In u l) as [?|?] by (apply classic).
-           { apply H1p0 in H2. simpl. destruct H2; fwd; auto.
-             left. split; auto. intros [?|?]; auto. subst. auto. }
-           eauto.
+           intros. eapply IH in H1; eauto. destruct H1; auto.
+           apply H1p0 in H1. destruct H1 as [?|[?|?]]; fwd; simpl; auto.
+           right. left. split; auto. intros [?|?]; subst; auto.
   Qed.
   End fold.
 
