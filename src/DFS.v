@@ -5,12 +5,6 @@ From GraphSearch Require Import GraphInterface.
 From Stdlib Require Import Classical_Prop.
 Import ListNotations.
 
-Lemma fold_right_inv {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a :
-  P [] a ->
-  (forall a' b l', P l' a' -> P (b :: l') (f b a')) ->
-  P l (fold_right f a l).
-Proof. intros. induction l; simpl; auto. Qed.
-
 Lemma fold_right_inv_NoDup {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a :
   NoDup l ->
   P [] a ->
@@ -18,34 +12,6 @@ Lemma fold_right_inv_NoDup {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a
   P l (fold_right f a l).
 Proof.
   intros H ? ?. induction l; simpl; auto. simpl in *. inversion_clear H. eauto 6.
-Qed.
-
-(* fold_left commutes with a function the step commutes with. *)
-Lemma fold_left_hom {A B} (f : A -> B -> A) (k : A -> A) l :
-  (forall a b, f (k a) b = k (f a b)) ->
-  forall a, fold_left f l (k a) = k (fold_left f l a).
-Proof.
-  intro Hstep. induction l as [|b l' IH]; intro a; [reflexivity|].
-  cbn [fold_left]. rewrite Hstep. apply IH.
-Qed.
-
-(* Binary version: relate two folds over the same list with different steps. *)
-Lemma fold_left_invariant2 {A B C} (P : list C -> A -> B -> Prop)
-      (f : A -> C -> A) (h : B -> C -> B) :
-  forall l a b,
-    P l a b ->
-    (forall a' b' c l', P (c :: l') a' b' -> P l' (f a' c) (h b' c)) ->
-    P [] (fold_left f l a) (fold_left h l b).
-Proof.
-  induction l as [|c l' IH]; intros a b HP Hstep; [exact HP|].
-  cbn [fold_left]. apply IH; [apply Hstep; exact HP | exact Hstep].
-Qed.
-
-Lemma In_last {A} (l : list A) d :
-  l <> [] -> In (last l d) l.
-Proof.
-  intro Hne. rewrite (app_removelast_last d Hne) at 2.
-  apply in_or_app. right. left. reflexivity.
 Qed.
 
 Section __.
@@ -376,6 +342,17 @@ Section __.
       l <> nil.
     Proof. destruct l; simpl; congruence. Qed.
 
+    Lemma no_long_paths_nonzero g root vs n :
+      no_long_paths g root vs n ->
+      ~In root vs ->
+      1 < n.
+    Proof.
+      cbv [no_long_paths]. intros H. specialize (H []). intro. subst.
+      especialize H; simpl; auto.
+      - constructor; auto. constructor.
+      - lia.
+    Qed.
+
     Lemma dfs_fold_sound1 root vs n st0 g vs' st' :
       no_long_paths g root vs n ->
       set_contains vs root = false ->
@@ -392,11 +369,8 @@ Section __.
         - lia. }
       intros root vs st0 vs' st' Hn Hroot H.
       assert (n <> 0).
-      { intro. subst. cbv [no_long_paths] in Hn.
-        specialize (Hn []). simpl in Hn. especialize Hn; auto.
-        - constructor; simpl; auto. constructor.
-        - apply set_contains_false in Hroot. auto.
-        - lia. }
+      { eapply no_long_paths_nonzero in Hn. 1: lia.
+        apply set_contains_false. assumption. }
       simpl in H. cbv [edge_upd']. simpl. rewrite Hroot in *.
       cbv [finish'] in H. Tactics.destruct_one_match_hyp. fwd.
       eenough (exists g_acc, _ /\ weak_graph_corresp root (rev (graph.edges g root)) vs vs' g g_acc) as [g_acc H].
@@ -549,13 +523,13 @@ Section __.
     - simpl in H. destruct (set_contains vs root) eqn:Hroot.
       + fwd. contradiction.
       + cbv [finish'] in *. Tactics.destruct_one_match_hyp. fwd.
-        enough ((In u vs' -> u = root \/ In v vs') /\ incl vs vs' /\ In root vs' /\ (u = root -> In v (rev (graph.edges g root)) -> In v vs')).
-        { fwd. apply Hp0 in Hu2. rewrite <- in_rev in Hp3. destruct Hu2; subst; auto. }
+        enough ((In u vs' -> u = root /\ (In v (rev (graph.edges g root)) -> In v vs') \/ In v vs') /\ incl vs vs' /\ In root vs').
+        { fwd. apply Hp0 in Hu2. rewrite <- in_rev in Hu2. destruct Hu2; fwd; auto. }
         clear Hu2. revert E. rewrite <- fold_left_rev_right.
         revert vs' s. apply fold_right_inv_NoDup.
         -- apply NoDup_rev. apply graph.edges_NoDup.
-        -- intros. fwd. ssplit; simpl; auto using incl_cons.
-           ++ intros [Hx|Hx]; subst; auto. exfalso. auto.
+        -- intros. fwd. ssplit; simpl; auto using incl_cons. intros [Hx|Hx]; subst.
+           ++ left. split; auto. contradiction.
            ++ contradiction.
         -- intros. destruct a'. specialize (H1 _ _ eq_refl). fwd.
            specialize IH with (2 := E).
@@ -565,30 +539,18 @@ Section __.
                + eassumption.
                + apply set_contains_false in Hroot. exact Hroot.
                + apply in_rev in H0. apply H0.
-             - apply List.incl_cons; auto. }
-           ssplit.
-           ++ intros. apply dfs_fold'_mono in E. right. apply E. Search dfs_fold'. apply dfs_fold'_ intros. right. eapply IH. 3: { apply in_rev in H0. apply H0. ; auto.
-        eapply
-           eapply IH in E.
-           split.
-           2: { ssplit; auto. (*easy*) admit. }
+             - fwd. apply List.incl_cons; auto. }
+           apply no_long_paths_nonzero in Hn.
+           2: { apply set_contains_false. assumption. }
+           pose proof E as E'. apply dfs_fold'_mono in E.
+           apply dfs_fold'_self in E'; [|lia].
+           ssplit; eauto using incl_tran.
            intros.
-           assert (In x l0 \/ ~In x l0) as [?|?] by admit.
-           { apply H0p0 in H1. assert (incl l0 l) by admit.
-             destruct H1; eauto using incl_tran. }
-           specialize (IH l0 b). epose proof (IH _) as IH. Unshelve.
-           2: { intros. specialize (Hfuel (b :: p) v). especialize Hfuel.
-                - cbv [path_to]. cbv [path_to] in H2. rewrite last_cons. fwd.
-                  simpl. auto.
-                - constructor; auto.
-                  + (*easy*) admit.
-                  + (*easy*) admit.
-                - (*easy*) admit.
-                - simpl in Hfuel. lia. }
-           epose proof (IH _ _ _) as IH. rewrite E in IH. simpl in IH.
-           specialize (IH H0 H1 He). auto.
-  Admitted.
-
+           assert (In u l \/ ~In u l) as [?|?] by (apply classic).
+           { apply H1p0 in H2. simpl. destruct H2; fwd; auto.
+             left. split; auto. intros [?|?]; auto. subst. auto. }
+           eauto.
+  Qed.
   End fold.
 
   Lemma dfs_fold_correct root st0 g :
