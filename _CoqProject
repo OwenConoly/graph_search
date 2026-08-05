@@ -2,6 +2,8 @@
 
 -Q src GraphSearch
 
+src/List.v
+src/EdgeRel.v
 src/GraphInterface.v
 src/GraphImpl.v
 src/DFS.v

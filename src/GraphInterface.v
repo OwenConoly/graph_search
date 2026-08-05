@@ -1,4 +1,6 @@
 From Stdlib Require Import List.
+From coqutil Require Import Tactics.fwd.
+From GraphSearch Require Import List EdgeRel.
 Import ListNotations.
 
 Definition same_set {A} (l1 l2 : list A) := incl l1 l2 /\ incl l2 l1.
@@ -106,6 +108,50 @@ Section ops.
                <-> In x (edges (union g1 (union g2 g3)) w)).
     { intro x. rewrite !edges_union. tauto. }
     split; intros x Hx; [exact (proj1 (Hiff x) Hx) | exact (proj2 (Hiff x) Hx)].
+  Qed.
+
+  Lemma sources_empty :
+    sources empty = @nil vertex.
+  Proof.
+    apply forall_not_in_nil. intros x Hx. apply sources_spec in Hx.
+    rewrite edges_empty in Hx. apply Hx. reflexivity.
+  Qed.
+
+  Lemma sources_put g u v u' :
+    In u' (sources (put g u v)) <-> In u' (sources g) \/ u = u'.
+  Proof.
+    rewrite !sources_spec, !neq_nil_iff_exists_in. split.
+    - intros [x Hx]. rewrite edges_put in Hx.
+      destruct Hx as [Hx | [Hu _]]; [left; exists x; exact Hx | right; exact Hu].
+    - intros [[x Hx] | Hu].
+      + exists x. rewrite edges_put. left. exact Hx.
+      + subst u'. exists v. rewrite edges_put. right. split; reflexivity.
+  Qed.
+
+  Lemma sources_union g1 g2 v :
+    In v (sources (union g1 g2)) <-> In v (sources g1) \/ In v (sources g2).
+  Proof.
+    rewrite !sources_spec, !neq_nil_iff_exists_in. split.
+    - intros [x Hx]. rewrite edges_union in Hx.
+      destruct Hx as [Hx | Hx]; [left | right]; exists x; exact Hx.
+    - intros [[x Hx] | [x Hx]]; exists x; rewrite edges_union; auto.
+  Qed.
+
+  Definition edge (g : graph) u v :=
+    In v (edges g u).
+
+  Lemma edge_union g1 g2 x y :
+    edge (union g1 g2) x y <-> edge g1 x y \/ edge g2 x y.
+  Proof. cbv [edge]. apply edges_union. Qed.
+
+  Lemma path_in_graph g root p :
+    path (edge g) root p ->
+    incl (removelast (root :: p)) (sources g).
+  Proof.
+    revert root. induction p; intros root Hroot.
+    - apply incl_nil_l.
+    - simpl in Hroot. fwd. rewrite removelast_cons. apply incl_cons. 2: eauto.
+      apply sources_spec. eapply in_not_nil. eassumption.
   Qed.
 End ops.
 End graph.
