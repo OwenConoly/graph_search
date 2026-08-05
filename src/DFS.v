@@ -29,6 +29,9 @@ Section __.
     Definition path_to first p last :=
       path first p /\ last = List.last p first.
 
+    Definition reaches first last :=
+      exists p, path_to first p last.
+
     Definition locally_tree root :=
       forall n p1 p2,
         path_to root p1 n ->
@@ -75,7 +78,7 @@ Section __.
         | O => st'
         end.
 
-      Definition dfs_fold st0 := dfs_fold' (S (length (graph.sources g))) ([], st0).
+      Definition dfs_fold st0 := dfs_fold' (3 + length (graph.sources g)) ([], st0).
     End with_graph.
 
     Inductive dfs_fold_state (root : V) (st0 : state') : state' -> list V (*current path*)-> graph (*explored edges*) -> Prop :=
@@ -547,6 +550,62 @@ Section __.
            intros. eapply IH in H1; eauto. destruct H1; auto.
            apply H1p0 in H1. destruct H1 as [?|[?|?]]; fwd; simpl; auto.
            right. left. split; auto. intros [?|?]; subst; auto.
+  Qed.
+
+  Lemma edge_closed_reaches_in R u0 v0 vs :
+    (forall u v, In u vs -> R u v -> In v vs) ->
+    In u0 vs ->
+    reaches R u0 v0 ->
+    In v0 vs.
+  Proof.
+    intros H Hu0 Hreach. cbv [reaches path_to] in Hreach. fwd.
+    revert u0 Hu0 Hreachp0. induction p; cbn [path]; intros u0 Hu0 Hreach; auto.
+    fwd. destruct p; eauto. rewrite last_cons. apply IHp; eauto.
+  Qed.
+
+  Lemma removelast_cons A (a b : A) l :
+    removelast (a :: b :: l) = a :: removelast (b :: l).
+  Proof. reflexivity. Qed.
+
+  Lemma path_in_graph g root p :
+    path (graph_edge g) root p ->
+    incl (removelast (root :: p)) (graph.sources g).
+  Proof.
+    revert root. induction p; intros root Hroot.
+    - apply incl_nil_l.
+    - simpl in Hroot. fwd. rewrite removelast_cons. apply List.incl_cons. 2: eauto.
+      apply graph.sources_spec. eapply in_not_nil. eassumption.
+  Qed.
+
+  Lemma NoDup_removelast A (l : list A) :
+    NoDup l ->
+    NoDup (removelast l).
+  Proof. Admitted.
+
+  Lemma length_removelast_cons A (a : A) l :
+    length (removelast (a :: l)) = length l.
+  Proof. Admitted.
+
+  Lemma paths_limited g root :
+    no_long_paths g root [] (S (S (S (length (graph.sources g))))).
+  Proof.
+    cbv [no_long_paths]. intros p H1 H2 _. apply path_in_graph in H1.
+    apply NoDup_removelast in H2. eapply NoDup_incl_length in H2; [|eassumption].
+    rewrite length_removelast_cons in H2. lia.
+  Qed.
+
+  Lemma dfs_fold_explores_everything g st root vs u v st' :
+    dfs_fold g st root = (vs, st') ->
+    reaches (graph_edge g) root u ->
+    graph_edge g u v ->
+    In u vs.
+  Proof.
+    intros. cbv [dfs_fold plus] in H. eapply edge_closed_reaches_in; cycle 1.
+    2: eassumption.
+    { apply dfs_fold'_self in H; [|lia]. assumption. }
+    intros. eapply visited_closed in H; eauto.
+    { destruct H as [[]|?]. assumption. }
+    apply paths_limited.
   Qed.
   End fold.
 
