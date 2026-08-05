@@ -494,97 +494,38 @@ Section __.
         + assumption.
     Qed.
 
-  End fold.
-
-  Lemma dfs_fold'_seen {St} (u t f : St -> list V -> V -> St) g n st' v :
-    already_seen st' v = true -> dfs_fold' u t f g (S n) st' v = untree_edge_upd' u st' v.
-  Proof. intro H; cbn [dfs_fold']; rewrite H; reflexivity. Qed.
-
-  Lemma dfs_fold'_S {St} (u t f : St -> list V -> V -> St) g n st' v :
-    dfs_fold' u t f g (S n) st' v
-    = if already_seen st' v then untree_edge_upd' u st' v
-      else finish' f (fold_left (dfs_fold' u t f g n) (graph.edges g v) (tree_edge_upd' t st' v)) v.
-  Proof. reflexivity. Qed.
-
-  Definition tree_edge_accumulate (path_g: list V * graph) (_ : list V) (cur : V) :=
-    let '(path, g) := path_g in
-    (cur :: path,
-      match path with
-      | [] => g
-      | prev :: _ => graph.put g prev cur
-      end).
-
-  Definition untree_edge_accumulate (path_g: list V * graph) (_ : list V) (cur : V) :=
-    let '(path, g) := path_g in
-    (path,
-      match path with
-      | [] => g
-      | prev :: _ => graph.put g prev cur
-      end).
-
-  Definition finish_accumulate (path_g : list V * graph) (_ : list V) (_ : V) :=
-    let '(path, g) := path_g in
-    (tl path, g).
-
-  Definition graph_accumulator := dfs_fold' untree_edge_accumulate tree_edge_accumulate finish_accumulate.
-
-  Lemma graph_accumulator_spec g0 n vs path g w vs' path' g' :
-   graph_accumulator g0 n (vs, (path, g)) w = (vs', (path', g')) ->
-    path' = path /\ (forall u v,
-                       graph_edge g' u v <-> graph_edge g u v \/
-                                             In u vs' /\ ~In u vs /\ graph_edge g0 u v \/
-                                             (n > 0 /\ exists path0, path = u :: path0 /\ v = w)).
+  Lemma dfs_fold'_mono g n vs st root vs' st' :
+    dfs_fold' g n (vs, st) root = (vs', st') ->
+    incl vs vs'.
   Proof.
-    revert vs path g w vs' path' g'. induction n; intros vs path g w vs' path' g'.
-    - simpl. intros. fwd. admit.
-    - simpl. intros. destruct (set_contains vs w) eqn:Evs.
-      + fwd. split; auto. intros. destruct path'.
-        -- split; auto. intros [H|[H|H]]; fwd; auto.
-           ++ exfalso. auto.
-           ++ discriminate.
-        -- cbv [graph_edge]. rewrite graph.edges_put. split; auto.
-           ++ intros [H|H]; auto. fwd. right. right. split; [lia|eauto].
-           ++ intros [H|[H|H]]; auto.
-              --- fwd. exfalso. auto.
-              --- fwd. auto.
+    revert vs st root vs' st'.
+    induction n as [|m IH]; simpl; intros vs st root vs' st' H; fwd.
+    - apply incl_refl.
+    - destruct (set_contains vs root).
+      + fwd. apply incl_refl.
       + cbv [finish'] in H. Tactics.destruct_one_match_hyp. fwd.
-        cbv [finish_accumulate] in H0. Tactics.destruct_one_match_hyp. fwd.
-        eenough (incl (w :: vs) vs' /\ l = w :: path /\ _). { exact (proj2 (proj2 H)). }
-        revert vs' l g' E. apply fold_left_inv.
-        -- intros. fwd. simpl. split; [apply incl_refl|]. split; [reflexivity|].
-           split; [reflexivity|].
-           intros. destruct path.
-           ++ split; auto. intros [H|[H|H]]; fwd; auto.
-              --- destruct Hp0; subst.
-                  +++ (*easy*) admit.
-                  +++ exfalso. auto.
-              --- discriminate.
-           ++ cbv [graph_edge]. rewrite graph.edges_put. split.
-              --- intros [H|H]; auto. fwd. right. right. split; [lia|eauto].
-              --- intros [H|[H|H]]; auto.
-                  +++ fwd. exfalso. destruct Hp0; auto. subst. (*easy*) admit.
-                  +++ fwd. auto.
-        -- intros. destruct a as [? [? ?]]. specialize (H0 _ _ _ eq_refl).
-           assert (incl l0 vs') by admit.
-           apply IHn in E. fwd. split; [eauto using incl_tran|].
-           split; [reflexivity|]. split; [reflexivity|]. intros. rewrite Ep1.
-           split.
-           ++ intros [H'|[H'|H']].
-              --- apply H0p3 in H'. destruct H' as [H'|[H'|H']]; auto.
-                  right. left. fwd. auto.
-              --- fwd. right. left. ssplit; auto. intro.
-                  Search (incl (_ :: _) _). apply incl_cons_inv in H0p0. fwd.
-                  auto.
-              --- fwd. right. left. ssplit; auto.
-                  +++ apply incl_cons_inv in H0p0. fwd. auto.
-                  +++ (*easy*) admit.
-           ++ intros [H'|[H'|H']].
-              --- rewrite H0p3. auto.
-              --- assert (In u l0 \/ ~In u l0) as [?|?] by admit.
-                  +++ fwd. rewrite H0p3. auto 10.
-                  +++ fwd. rewrite H0p3. auto 10.
-              --- fwd. rewrite H0p3. left. eauto 10.
-  Admitted.
+        revert vs' s E. apply fold_left_inv; simpl; intros; fwd; simpl; auto.
+        -- apply incl_tl. apply incl_refl.
+        -- destruct a. specialize (H0 _ _ eq_refl). apply IH in E. eauto using incl_tran.
+  Qed.
+
+  Lemma dfs_fold'_self g m vs st root vs' st' :
+    0 < m ->
+    dfs_fold' g m (vs, st) root = (vs', st') ->
+    In root vs'.
+  Proof.
+    intros Hm H. destruct m as [|k]; [lia|]. simpl in H.
+    destruct (set_contains vs root) eqn:Hc.
+    - fwd. apply set_contains_true. assumption.
+    - cbv [finish'] in H. Tactics.destruct_one_match_hyp. fwd.
+      revert vs' s E. apply fold_left_inv; simpl; intros; fwd; simpl; auto.
+      destruct a. especialize H0; eauto.
+      eapply dfs_fold'_mono; eassumption.
+  Qed.
+
+  Lemma incl_cons A (a : A) l :
+    incl l (a :: l).
+  Proof. Admitted.
 
   Lemma last_cons (l : list V) a d :
     last (a :: l) d = last l a.
@@ -594,77 +535,49 @@ Section __.
     rewrite (IH b d), (IH b a). reflexivity.
   Qed.
 
-  Lemma set_contains_iff_In vs v :
-    set_contains vs v = true <-> In v vs.
+  Lemma visited_closed g n vs root u v st vs' st' :
+    no_long_paths g root vs n ->
+    dfs_fold' g n (vs, st) root = (vs', st') ->
+    ~ In u vs ->
+    In u vs' ->
+    graph_edge g u v ->
+    In v vs'.
   Proof.
-    unfold set_contains. symmetry.
-    apply (existsb_eqb_in (aeqb_dec := @eqb_boolspec V eqbV eqb_ok)).
-  Qed.
-
-  Lemma accum_visited_mono g n : forall s w a,
-    In a (fst s) -> In a (fst (graph_accumulator g n s w)).
-  Proof.
-    unfold graph_accumulator.
-    induction n as [|m IH]; intros [vs [path G]] w a Ha; cbn [fst] in Ha;
-      cbn [dfs_fold' already_seen].
-    - destruct (set_contains vs w);
-        [cbn [untree_edge_upd' untree_edge_accumulate fst] | cbn [fst]]; exact Ha.
-    - destruct (set_contains vs w).
-      + cbn [untree_edge_upd' untree_edge_accumulate fst]. exact Ha.
-      + cbv [finish']. Tactics.destruct_one_match. simpl.
-        cbv [tree_edge_upd'] in E.
-        revert l p E. apply fold_left_inv; simpl; intros; fwd; simpl; auto.
-        destruct a0. especialize H0; eauto. eapply (IH (_, _)) in H0.
-        rewrite E in H0. simpl in H0. assumption.
-  Qed.
-
-  Lemma accum_visited_self g m vs path G c :
-    0 < m -> In c (fst (graph_accumulator g m (vs, (path, G)) c)).
-  Proof.
-    intro Hm. destruct m as [|k]; [lia|]. simpl.
-    destruct (set_contains vs c) eqn:Hc.
-    - cbn [untree_edge_upd' untree_edge_accumulate fst].
-      apply set_contains_iff_In; exact Hc.
-    - cbv [finish']. Tactics.destruct_one_match. simpl.
-        cbv [tree_edge_upd'] in E.
-        revert l p E. apply fold_left_inv; simpl; intros; fwd; simpl; auto.
-        destruct a. especialize H0; eauto.
-        eapply accum_visited_mono with (s := (_, _)) in H0. rewrite E in H0. exact H0.
-  Qed.
-
-  Lemma incl_cons A (a : A) l :
-    incl l (a :: l).
-  Proof. Admitted.
-
-  Lemma accum_visited_closed g n : forall vs root,
-    (forall p v, path_to (graph_edge g) root p v ->
-       Forall (fun w => ~ In w vs) (root :: p) -> NoDup (root :: p) -> length p < n) ->
-    forall x y junk,
-      In x (fst (graph_accumulator g n (vs, junk) root)) ->
-      ~ In x vs ->
-      graph_edge g x y ->
-      In y (fst (graph_accumulator g n (vs, junk) root)).
-  Proof.
-    induction n as [|m IH]; intros vs root Hfuel x y junk Hx Hnx He.
-    - destruct (Hnx Hx).
-    - simpl in Hx. simpl. destruct (set_contains vs root) eqn:Hroot.
-      + simpl in Hx. contradiction.
-      + remember (finish' _ _ _) as blah. destruct blah as (vs'&?).
-        cbv [finish'] in Heqblah. Tactics.destruct_one_match_hyp. simpl in *. fwd.
-        enough ((In x l -> x = root \/ In y l) /\ incl vs l /\ In root l).
-        { fwd. apply Hp0 in Hx. destruct Hx; subst; auto. (*easy*) admit. }
-        clear Hx. revert E. revert l p0. apply fold_left_inv.
-        -- intros. fwd. split; simpl; auto using incl_cons. intros [Hx|Hx]; subst; auto.
-           exfalso. auto.
-        -- intros. destruct a. specialize (H0 _ _ eq_refl). fwd.
+    revert vs root u v st vs' st'.
+    induction n as [|m IH]; intros vs root u v st vs' st' Hn H Hu1 Hu2 He.
+    - simpl in *. fwd. contradiction.
+    - simpl in H. destruct (set_contains vs root) eqn:Hroot.
+      + fwd. contradiction.
+      + cbv [finish'] in *. Tactics.destruct_one_match_hyp. fwd.
+        enough ((In u vs' -> u = root \/ In v vs') /\ incl vs vs' /\ In root vs' /\ (u = root -> In v (rev (graph.edges g root)) -> In v vs')).
+        { fwd. apply Hp0 in Hu2. rewrite <- in_rev in Hp3. destruct Hu2; subst; auto. }
+        clear Hu2. revert E. rewrite <- fold_left_rev_right.
+        revert vs' s. apply fold_right_inv_NoDup.
+        -- apply NoDup_rev. apply graph.edges_NoDup.
+        -- intros. fwd. ssplit; simpl; auto using incl_cons.
+           ++ intros [Hx|Hx]; subst; auto. exfalso. auto.
+           ++ contradiction.
+        -- intros. destruct a'. specialize (H1 _ _ eq_refl). fwd.
+           specialize IH with (2 := E).
+           eassert (blah : _). 2: specialize IH with (1 := blah).
+           { eapply no_long_paths_incl.
+             - apply no_long_paths_step.
+               + eassumption.
+               + apply set_contains_false in Hroot. exact Hroot.
+               + apply in_rev in H0. apply H0.
+             - apply List.incl_cons; auto. }
+           ssplit.
+           ++ intros. apply dfs_fold'_mono in E. right. apply E. Search dfs_fold'. apply dfs_fold'_ intros. right. eapply IH. 3: { apply in_rev in H0. apply H0. ; auto.
+        eapply
+           eapply IH in E.
            split.
-           2: { (*easy*) admit. }
+           2: { ssplit; auto. (*easy*) admit. }
            intros.
            assert (In x l0 \/ ~In x l0) as [?|?] by admit.
            { apply H0p0 in H1. assert (incl l0 l) by admit.
              destruct H1; eauto using incl_tran. }
            specialize (IH l0 b). epose proof (IH _) as IH. Unshelve.
-           2: { intros. specialize (Hfuel (b :: p1) v). especialize Hfuel.
+           2: { intros. specialize (Hfuel (b :: p) v). especialize Hfuel.
                 - cbv [path_to]. cbv [path_to] in H2. rewrite last_cons. fwd.
                   simpl. auto.
                 - constructor; auto.
@@ -675,6 +588,8 @@ Section __.
            epose proof (IH _ _ _) as IH. rewrite E in IH. simpl in IH.
            specialize (IH H0 H1 He). auto.
   Admitted.
+
+  End fold.
 
   Lemma dfs_fold_correct root st0 g :
     (forall p v, path_to (graph_edge g) root p v ->
