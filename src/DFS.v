@@ -275,21 +275,39 @@ Section __.
 
     Definition graph_corresp vs vs' g g_acc :=
       (forall s, In s (graph.sources g_acc) -> In s vs'/\  ~In s vs) /\
-      forall u v,
-        graph_edge g u v ->
-        In u vs' ->
-        ~ In u vs ->
-        graph_edge g_acc u v.
+        (forall u v,
+            graph_edge g u v ->
+            In u vs' ->
+            ~ In u vs ->
+            graph_edge g_acc u v) /\
+        (forall u v, graph_edge g_acc u v -> graph_edge g u v).
+
+    Lemma in_not_nil A x (l : list A) :
+      In x l ->
+      l <> nil.
+    Proof. destruct l; simpl; congruence. Qed.
+
+    Lemma graph_corresp_eq vs g g_acc :
+      graph_corresp [] vs g g_acc ->
+      (forall u v, graph_edge g_acc u v <-> graph_edge g u v /\ In u vs).
+    Proof.
+      cbv [graph_corresp]. intros. fwd. split.
+      - intros. especialize Hp0.
+        { apply graph.sources_spec. eapply in_not_nil. eassumption. }
+        fwd. auto.
+      - intros. fwd. auto.
+    Qed.
 
     Definition weak_graph_corresp root root_edges vs vs' g g_acc :=
       (forall s, In s (graph.sources g_acc) -> In s vs'/\  ~In s vs) /\
-      (forall u v,
-        graph_edge g u v ->
-        In u vs' ->
-        ~ In u vs ->
-        u <> root ->
-        graph_edge g_acc u v) /\
-        (forall v, graph_edge g_acc root v <-> In v root_edges).
+        (forall u v,
+            graph_edge g u v ->
+            In u vs' ->
+            ~ In u vs ->
+            u <> root ->
+            graph_edge g_acc u v) /\
+        (forall v, graph_edge g_acc root v <-> In v root_edges) /\
+        (forall u v, graph_edge g_acc u v -> graph_edge g u v).
 
     Definition no_long_paths g root vs n :=
       forall p,
@@ -340,11 +358,6 @@ Section __.
       l = [].
     Proof. destruct l; auto. simpl. intros. exfalso. eapply H; auto. Qed.
 
-    Lemma in_not_nil A x (l : list A) :
-      In x l ->
-      l <> nil.
-    Proof. destruct l; simpl; congruence. Qed.
-
     Lemma no_long_paths_nonzero g root vs n :
       no_long_paths g root vs n ->
       ~In root vs ->
@@ -356,12 +369,12 @@ Section __.
       - lia.
     Qed.
 
-    Lemma dfs_fold_sound1 root vs n st0 g vs' st' :
+    Lemma dfs_fold'_sound root vs n st0 g vs' st' :
       no_long_paths g root vs n ->
       set_contains vs root = false ->
       dfs_fold' g n (vs, st0) root = (vs', st') ->
       exists g_acc,
-        dfs_fold_state root (edge_upd' (vs, st0) root) (vs', st') [] g_acc /\
+        dfs_fold_state root (tree_edge_upd' (vs, st0) root) (vs', st') [] g_acc /\
           graph_corresp vs vs' g g_acc.
     Proof.
       revert root vs st0 vs' st'. induction n.
@@ -381,7 +394,7 @@ Section __.
         - apply dfs_finish with (st := (_, _)). eapply (proj1 H).
         - destruct H as [_ H].
           cbv [graph_corresp].
-          cbv [weak_graph_corresp] in H. fwd. split; auto. intros.
+          cbv [weak_graph_corresp] in H. fwd. split; auto. split; auto. intros.
           assert (u = root \/ u <> root) as [Hu|Hu] by apply classic.
           { subst. apply Hp2. rewrite <- in_rev. assumption. }
           apply Hp1; assumption. }
@@ -393,9 +406,12 @@ Section __.
         cbv [weak_graph_corresp]. split.
         { rewrite sources_empty. simpl. contradiction. }
         split; cycle 1.
-        { cbv [graph_edge]. rewrite graph.edges_empty. simpl. intros. split; auto. }
+        { cbv [graph_edge]. rewrite graph.edges_empty. simpl. split.
+          - intros. split; auto.
+          - intros * H.  rewrite graph.edges_empty in H. destruct H. }
         intros. exfalso. destruct H1; subst; auto.
-      - intros * Hnotin Hin H * Hdfs. destruct a'. specialize (H _ _ eq_refl). fwd.
+      - intros * Hnotin Hin H * Hdfs. destruct a'.
+        specialize (H _ _ eq_refl). fwd. apply in_rev in Hin.
         destruct (set_contains l b) eqn:Eb.
         { destruct n; [lia|]. simpl in Hdfs. rewrite Eb in Hdfs. fwd.
           eexists. split.
@@ -414,11 +430,12 @@ Section __.
               apply Hp1p1; auto.
             + intros. cbv [graph_edge]. rewrite graph.edges_put.
               cbv [graph_edge] in Hp1p2. rewrite Hp1p2.
-              simpl. split; intros [?|?]; fwd; auto. }
+              simpl. split; intros [?|?]; fwd; auto.
+            + intros * H. cbv [graph_edge] in H. rewrite graph.edges_put in H.
+              destruct H as [H|H]; fwd; auto. }
         apply IHn in Hdfs.
         + fwd.
-          cbv [edge_upd'] in Hdfsp0. simpl in Hdfsp0. rewrite Eb in Hdfsp0.
-          eexists. split.
+          cbv [tree_edge_upd'] in Hdfsp0. eexists. split.
           -- eapply dfs_fold_state_trans with (p' := nil).
              ++ apply dfs_tree_edge. 2: eassumption.
                 --- intros H. cbv [weak_graph_corresp] in Hp1. fwd. apply Hp1p2 in H.
@@ -462,13 +479,58 @@ Section __.
                 --- intros [Hv|Hv].
                     +++ subst. auto.
                     +++ left. left. apply Hp1p2. assumption.
+             ++ intros. cbv [graph_edge] in H.
+                rewrite graph.edges_union, graph.edges_put in H.
+                destruct H as [[H|H]|H]; fwd; auto.
+                cbv [graph_corresp] in Hdfsp1. fwd. auto.
         + eapply no_long_paths_incl.
-          -- apply no_long_paths_step.
-             +++ eassumption.
-             +++ apply set_contains_false in Hroot. exact Hroot.
-             +++ apply in_rev in Hin. apply Hin.
+          -- apply no_long_paths_step; try eassumption.
+             apply set_contains_false in Hroot. exact Hroot.
           -- apply already_seen_mono' in Hp0. exact Hp0.
         + assumption.
+    Qed.
+
+    Lemma removelast_cons A (a b : A) l :
+      removelast (a :: b :: l) = a :: removelast (b :: l).
+    Proof. reflexivity. Qed.
+
+    Lemma NoDup_removelast A (l : list A) :
+      NoDup l ->
+      NoDup (removelast l).
+    Proof. Admitted.
+
+    Lemma length_removelast_cons A (a : A) l :
+      length (removelast (a :: l)) = length l.
+    Proof. Admitted.
+
+    Lemma path_in_graph g root p :
+      path (graph_edge g) root p ->
+      incl (removelast (root :: p)) (graph.sources g).
+    Proof.
+      revert root. induction p; intros root Hroot.
+      - apply incl_nil_l.
+      - simpl in Hroot. fwd. rewrite removelast_cons. apply List.incl_cons. 2: eauto.
+        apply graph.sources_spec. eapply in_not_nil. eassumption.
+    Qed.
+
+    Lemma paths_limited g root :
+      no_long_paths g root [] (S (S (S (length (graph.sources g))))).
+    Proof.
+      cbv [no_long_paths]. intros p H1 H2 _. apply path_in_graph in H1.
+      apply NoDup_removelast in H2. eapply NoDup_incl_length in H2; [|eassumption].
+      rewrite length_removelast_cons in H2. lia.
+    Qed.
+
+    Lemma dfs_fold_sound g st0 root vs st :
+      dfs_fold g st0 root = (vs, st) ->
+      exists g_acc,
+        dfs_fold_state root (tree_edge_upd' ([], st0) root) (vs, st) [] g_acc /\
+          (forall u v, graph_edge g_acc u v <-> graph_edge g u v /\ In u vs).
+    Proof.
+      intros H. apply dfs_fold'_sound in H; cycle 1.
+      { apply paths_limited. }
+      { reflexivity. }
+      fwd. eauto using graph_corresp_eq.
     Qed.
 
   Lemma dfs_fold'_mono g n vs st root vs' st' :
@@ -504,7 +566,7 @@ Section __.
     incl l (a :: l).
   Proof. Admitted.
 
-  Lemma last_cons (l : list V) a d :
+  Lemma last_cons A (l : list A) a d :
     last (a :: l) d = last l a.
   Proof.
     revert a d. induction l as [|b l' IH]; intros a d; [reflexivity|].
@@ -563,35 +625,50 @@ Section __.
     fwd. destruct p; eauto. rewrite last_cons. apply IHp; eauto.
   Qed.
 
-  Lemma removelast_cons A (a b : A) l :
-    removelast (a :: b :: l) = a :: removelast (b :: l).
-  Proof. reflexivity. Qed.
+  Lemma reaches_self R u :
+    reaches R u u.
+  Proof. cbv [reaches]. exists nil. cbv [path_to]. simpl. auto. Qed.
 
-  Lemma path_in_graph g root p :
-    path (graph_edge g) root p ->
-    incl (removelast (root :: p)) (graph.sources g).
+  Lemma last_cons_last_cons A (a : A) l d1 d2 :
+    last (a :: l) d1 = last (a :: l) d2.
+  Proof. do 2 rewrite last_cons. reflexivity. Qed.
+
+  Lemma reaches_step_before R u v w :
+    reaches R v w ->
+    R u v ->
+    reaches R u w.
   Proof.
-    revert root. induction p; intros root Hroot.
-    - apply incl_nil_l.
-    - simpl in Hroot. fwd. rewrite removelast_cons. apply List.incl_cons. 2: eauto.
-      apply graph.sources_spec. eapply in_not_nil. eassumption.
+    cbv [reaches path_to]. intros. fwd. eexists (_ :: _). simpl. split; eauto.
+    destruct p; try reflexivity. apply last_cons_last_cons.
   Qed.
 
-  Lemma NoDup_removelast A (l : list A) :
-    NoDup l ->
-    NoDup (removelast l).
-  Proof. Admitted.
-
-  Lemma length_removelast_cons A (a : A) l :
-    length (removelast (a :: l)) = length l.
-  Proof. Admitted.
-
-  Lemma paths_limited g root :
-    no_long_paths g root [] (S (S (S (length (graph.sources g))))).
+  Lemma dfs_fold'_connected g n vs st0 st root u vs' :
+    dfs_fold' g n (vs, st0) root = (vs', st) ->
+    In u vs' ->
+    In u vs \/ reaches (graph_edge g) root u.
   Proof.
-    cbv [no_long_paths]. intros p H1 H2 _. apply path_in_graph in H1.
-    apply NoDup_removelast in H2. eapply NoDup_incl_length in H2; [|eassumption].
-    rewrite length_removelast_cons in H2. lia.
+    revert vs st0 st root u vs'.
+    induction n; intros vs st0 st root u vs' H Hu.
+    - simpl in H. fwd. auto.
+    - simpl in H. destruct (set_contains vs root).
+      + fwd. auto.
+      + cbv [finish'] in *. Tactics.destruct_one_match_hyp. fwd.
+        revert vs' s Hu E. apply fold_left_inv.
+        -- intros vs' s Hu ?. fwd. destruct Hu as [Hu|Hu]; auto.
+           subst. right. apply reaches_self.
+        -- intros [vs0 s0] b Hb IH vs' s' Hu H. specialize IH with (2 := eq_refl).
+           eapply IHn in H; [|eassumption]. destruct H as [H|H].
+           ++ apply IH in H. destruct H as [H|H]; auto.
+           ++ right. eapply reaches_step_before; eassumption.
+  Qed.
+
+  Lemma dfs_fold_connected g vs st0 st root u :
+    dfs_fold g st0 root = (vs, st) ->
+    In u vs ->
+    reaches (graph_edge g) root u.
+  Proof.
+    intros H1 H2. eapply dfs_fold'_connected in H1; eauto.
+    destruct H1 as [[]|?]. assumption.
   Qed.
 
   Lemma dfs_fold_explores_everything g st root vs u v st' :
@@ -607,21 +684,25 @@ Section __.
     { destruct H as [[]|?]. assumption. }
     apply paths_limited.
   Qed.
-  End fold.
 
-  Lemma dfs_fold_correct root st0 g :
-    (forall p v, path_to (graph_edge g) root p v ->
-       length p < S (length (graph.sources g))) ->
+  Definition reachable_subgraph root g' g :=
+    forall u v, graph_edge g' u v <-> graph_edge g u v /\ reaches (graph_edge g) root u.
+
+  Definition dfs_fold_spec g st0 root vs st :
+    dfs_fold g st0 root = (vs, st) ->
     exists g',
-      dfs_fold_state0 root (edge_upd'0 ([], st0) root)
-        (dfs_fold untree_edge_upd tree_edge_upd finish g st0 root) [] g' /\
-      restriction root [] g g'.
+      reachable_subgraph root g' g /\
+        dfs_fold_state root (tree_edge_upd' ([], st0) root) (vs, st) [] g'.
   Proof.
-    intro Hbound. unfold dfs_fold. apply dfs_fold_sound.
-    - reflexivity.
-    - intros p v Hpt _. exact (Hbound p v Hpt).
+    intros H.
+    pose proof dfs_fold_sound as H1. specialize H1 with (1 := H). fwd.
+    pose proof dfs_fold_explores_everything as H2. specialize H2 with (1 := H).
+    pose proof dfs_fold_connected as H3. specialize H3 with (1 := H).
+    exists g_acc. split; [|assumption].
+    cbv [reachable_subgraph].
+    intros. split; intros He.
+    - apply H1p1 in He. fwd. auto.
+    - fwd. apply H1p1. eauto.
   Qed.
-
-  Definition check_tree :=
-    dfs_fold (fun _ _ _ => false) (fun tree _ _ => tree).
+  End fold.
 End __.
