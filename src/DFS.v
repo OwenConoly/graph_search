@@ -2,6 +2,7 @@ From Stdlib Require Import List Lia.
 From coqutil Require Import Datatypes.List Datatypes.ListSet Eqb.
 From coqutil Require Import Tactics.destr Tactics.Tactics Tactics.fwd.
 From GraphSearch Require Import GraphInterface.
+From Stdlib Require Import Classical_Prop.
 Import ListNotations.
 
 Lemma fold_right_inv {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a :
@@ -13,7 +14,7 @@ Proof. intros. induction l; simpl; auto. Qed.
 Lemma fold_right_inv_NoDup {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a :
   NoDup l ->
   P [] a ->
-  (forall a' b l', ~In b l' -> P l' a' -> P (b :: l') (f b a')) ->
+  (forall a' b l', ~In b l' -> In b l -> P l' a' -> P (b :: l') (f b a')) ->
   P l (fold_right f a l).
 Proof.
   intros H ? ?. induction l; simpl; auto. simpl in *. inversion_clear H. eauto 6.
@@ -304,7 +305,7 @@ Section __.
     Qed.
 
     Definition graph_corresp vs vs' g g_acc :=
-      incl (graph.sources g_acc) vs' /\
+      (forall s, In s (graph.sources g_acc) -> In s vs'/\  ~In s vs) /\
       forall u v,
         graph_edge g u v ->
         In u vs' ->
@@ -312,7 +313,7 @@ Section __.
         graph_edge g_acc u v.
 
     Definition weak_graph_corresp root root_edges vs vs' g g_acc :=
-      incl (graph.sources g_acc) vs' /\
+      (forall s, In s (graph.sources g_acc) -> In s vs'/\  ~In s vs) /\
       (forall u v,
         graph_edge g u v ->
         In u vs' ->
@@ -342,6 +343,15 @@ Section __.
       - constructor; auto. eapply Forall_impl; [|eassumption].
         simpl. auto.
       - lia.
+    Qed.
+
+    Lemma no_long_paths_incl g u vs vs' n :
+      no_long_paths g u vs n ->
+      incl vs vs' ->
+      no_long_paths g u vs' n.
+    Proof.
+      cbv [no_long_paths]. intros. apply H; auto.
+      eapply Forall_impl; simpl; eauto. simpl. unfold not. auto.
     Qed.
 
     Lemma sources_empty :
@@ -395,7 +405,7 @@ Section __.
         - destruct H as [_ H].
           cbv [graph_corresp].
           cbv [weak_graph_corresp] in H. fwd. split; auto. intros.
-          assert (u = root \/ u <> root) as [Hu|Hu] by admit.
+          assert (u = root \/ u <> root) as [Hu|Hu] by apply classic.
           { subst. apply Hp2. rewrite <- in_rev. assumption. }
           apply Hp1; assumption. }
       rewrite <- fold_left_rev_right in E.
@@ -404,11 +414,11 @@ Section __.
       - apply NoDup_rev. apply graph.edges_NoDup.
       - intros. fwd. eexists. split; [constructor|].
         cbv [weak_graph_corresp]. split.
-        { rewrite sources_empty. apply incl_nil_l. }
+        { rewrite sources_empty. simpl. contradiction. }
         split; cycle 1.
         { cbv [graph_edge]. rewrite graph.edges_empty. simpl. intros. split; auto. }
         intros. exfalso. destruct H1; subst; auto.
-      - intros * Hnotin H * Hdfs. destruct a'. specialize (H _ _ eq_refl). fwd.
+      - intros * Hnotin Hin H * Hdfs. destruct a'. specialize (H _ _ eq_refl). fwd.
         destruct (set_contains l b) eqn:Eb.
         { destruct n; [lia|]. simpl in Hdfs. rewrite Eb in Hdfs. fwd.
           eexists. split.
@@ -420,7 +430,8 @@ Section __.
           - cbv [weak_graph_corresp] in *. fwd. ssplit.
             + cbv [incl]. intros v Hv. apply sources_put in Hv. destruct Hv; auto.
               subst. eapply already_seen_mono in Hp0.
-              -- simpl in Hp0. apply set_contains_true in Hp0. exact Hp0.
+              -- simpl in Hp0. apply set_contains_true in Hp0. split; [exact Hp0|].
+                 apply set_contains_false in Hroot. assumption.
               -- simpl. rewrite eqb_refl_true by assumption. reflexivity.
             + intros. cbv [graph_edge]. rewrite graph.edges_put. left.
               apply Hp1p1; auto.
@@ -442,39 +453,46 @@ Section __.
                 --- cbv [weak_graph_corresp] in Hp1. fwd.
                     apply in_not_nil in H. Search graph.sources.
                     apply graph.sources_spec in H. apply Hp1p0 in H.
-                    apply set_contains_false in Eb. auto.
+                    apply set_contains_false in Eb. fwd. auto.
                 --- fwd. eapply already_seen_mono in Hp0; cycle 1.
                     { simpl. rewrite eqb_refl_true by assumption. reflexivity. }
                     simpl in Hp0. congruence.
              ++ eassumption.
-          -- cbv [weak_graph_corresp]. cbv [weak_graph_corresp] in Hp1. fwd. ssplit.
+          -- cbv [weak_graph_corresp]. cbv [weak_graph_corresp] in Hp1. fwd.
+             apply already_seen_mono' in Hp0, Hdfsp0.
+             ssplit.
              ++ cbv [incl]. intros v Hv. rewrite sources_union, sources_put in Hv.
-                apply already_seen_mono' in Hp0, Hdfsp0.
                 destruct Hv as [[Hv|Hv]|Hv].
-                --- apply Hdfsp0. simpl. auto.
-                --- subst. apply Hdfsp0. simpl. right. apply Hp0. simpl. auto.
-                --- cbv [graph_corresp] in Hdfsp1. fwd. auto.
-             ++
-                    eapply already_seen_mono in Hp0; cycle 1.
-                    { simpl. apply Bool.orb_true_intro. right. apply set_contains_true.
-                      orb_true. rewrite eqb_refl_true by assumption. reflexivity. }
-                    simpl in H
-                    { auto.
-                cbv [weak_
-                simpl in Hdfseassumption.
-                    simpl in Hp0.
-                    Search In nil.
-                remember (eenough (forall x, ~In x (graph.edges ().
-                { destruct (graph.edges _); [reflexivity|]. Search (_ = []).
-                simpl.
-             ; try eassumption.
-        eexists.
-        + constructor.
-      destruct (set_contains vs root) eqn:Eroot.
-      - fwd. eexists. split.
-        + Print dfs_fold_state. econstructor. fwd. exists graph.empty. split.
-        - pose proof dfs_finish. Print dfs_fold_state. constructor.
-
+                --- apply Hp1p0 in Hv. fwd. split; auto. apply Hdfsp0. simpl. auto.
+                --- subst. split.
+                    +++ apply Hdfsp0. simpl. right. apply Hp0. simpl. auto.
+                    +++ apply set_contains_false in Hroot. exact Hroot.
+                --- cbv [graph_corresp] in Hdfsp1. fwd. apply Hdfsp1p0 in Hv. fwd.
+                    split; auto. intro. apply Hvp1. apply Hp0. simpl. auto.
+             ++ intros. cbv [graph_edge]. rewrite graph.edges_union, graph.edges_put.
+                assert (In u l \/ ~In u l) as [Hu|Hu] by apply classic.
+                --- left. left. apply Hp1p1; auto.
+                --- right. apply Hdfsp1; auto.
+             ++ intros. cbv [graph_edge]. rewrite graph.edges_union, graph.edges_put.
+                split.
+                --- intros [[Hv|Hv]|Hv].
+                    +++ simpl. right. apply Hp1p2. assumption.
+                    +++ fwd. simpl. auto.
+                    +++ cbv [graph_corresp] in Hdfsp1. fwd.
+                        apply in_not_nil in Hv. apply graph.sources_spec in Hv.
+                        apply Hdfsp1p0 in Hv. fwd. exfalso. apply Hvp1. apply Hp0.
+                        simpl. auto.
+                --- intros [Hv|Hv].
+                    +++ subst. auto.
+                    +++ left. left. apply Hp1p2. assumption.
+        + eapply no_long_paths_incl.
+          -- apply no_long_paths_step.
+             +++ eassumption.
+             +++ apply set_contains_false in Hroot. exact Hroot.
+             +++ apply in_rev in Hin. apply Hin.
+          -- apply already_seen_mono' in Hp0. exact Hp0.
+        + assumption.
+    Qed.
 
   End fold.
 
