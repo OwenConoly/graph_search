@@ -327,4 +327,9 @@ Section __.
   Lemma tree_of_valid_tree (g : graph) u :
     valid_tree (tree_of g u).
   Proof. Admitted.
+
+  Lemma graph_of_tree_of (g : graph) u :
+    is_tree (graph.edge g) u ->
+    graph_of (tree_of g u) = g.
+  Proof. Admitted.
 End __.
