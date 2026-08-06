@@ -89,7 +89,7 @@ Section __.
     { intros p Hnv Hcontra. destruct p as [|a p'].
       - simpl in Hcontra. exact (Hrv Hcontra).
       - apply Hnv. rewrite <- Hcontra. apply In_last. congruence. }
-    assert (decomp : forall p, path (graph.edge (graph.put g u v)) root p ->
+    assert (decomp : forall p, path (graph.edge (graph.put  g u v)) root p ->
               (~ In v p /\ path (graph.edge g) root p) \/
               (exists q, p = q ++ [v] /\ ~ In v q /\ path (graph.edge g) root q /\ last q root = u)).
     { intros p Hp. destruct (set_contains p v) eqn:Hsc.

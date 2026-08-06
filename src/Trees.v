@@ -316,4 +316,24 @@ Section __.
     - apply graph_of_all_reachable. exact Hvalid.
   Qed.
 
+  Context {eqbV : Eqb V}.
+
+  Definition tree_of (g : graph) root :=
+    let '(_, tree_stack) :=
+      dfs_fold (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
+        (fun tss _ finished =>
+           match tss with
+           | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
+           | _ => []
+           end) g [[]] root in
+    match tree_stack with
+    | [[t]] => t
+    | _ => tree_cons root []
+    end.
+
+
+  Lemma tree_of_valid_tree (g : graph) u :
+    is_tree (graph.edge g) u ->
+    valid_tree (tree_of g u).
+  Proof. Admitted.
 End __.
