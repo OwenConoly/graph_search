@@ -1,9 +1,9 @@
 From Stdlib Require Import List.
-From coqutil Require Import Tactics.fwd.
+From coqutil Require Import Tactics.fwd Datatypes.List Eqb.
 From GraphSearch Require Import List EdgeRel.
 Import ListNotations.
 
-Definition same_set {A} (l1 l2 : list A) := incl l1 l2 /\ incl l2 l1.
+Definition same_set {A} (l1 l2 : list A) := forall a, In a l1 <-> In a l2.
 (*closely following Map.Interface, because idk what i am doing*)
 Module graph.
 Class graph {vertex} := {
@@ -73,41 +73,29 @@ Section ops.
   Lemma union_empty_r g :
     union g empty = g.
   Proof.
-    apply graph_ext. intro v. unfold same_set. split; intros x Hx.
-    - rewrite edges_union, edges_empty in Hx.
-      destruct Hx as [H|H]; [exact H | destruct H].
-    - rewrite edges_union, edges_empty. left. exact Hx.
+    apply graph_ext. intro v. intro x.
+    rewrite edges_union, edges_empty. cbn [In]. tauto.
   Qed.
 
   Lemma union_put_r g1 g2 u v :
     union g1 (put g2 u v) = put (union g1 g2) u v.
   Proof.
-    apply graph_ext. intro w. unfold same_set.
-    assert (Hiff : forall x,
-               In x (edges (union g1 (put g2 u v)) w)
-               <-> In x (edges (put (union g1 g2) u v) w)).
-    { intro x. rewrite !edges_union, !edges_put, !edges_union. tauto. }
-    split; intros x Hx; [exact (proj1 (Hiff x) Hx) | exact (proj2 (Hiff x) Hx)].
+    apply graph_ext. intro w. intro x.
+    rewrite !edges_union, !edges_put, !edges_union. tauto.
   Qed.
 
   Lemma union_empty_l g :
     union empty g = g.
   Proof.
-    apply graph_ext. intro v. unfold same_set. split; intros x Hx.
-    - rewrite edges_union, edges_empty in Hx.
-      destruct Hx as [H|H]; [destruct H | exact H].
-    - rewrite edges_union, edges_empty. right. exact Hx.
+    apply graph_ext. intro v. intro x.
+    rewrite edges_union, edges_empty. cbn [In]. tauto.
   Qed.
 
   Lemma union_assoc g1 g2 g3 :
     union (union g1 g2) g3 = union g1 (union g2 g3).
   Proof.
-    apply graph_ext. intro w. unfold same_set.
-    assert (Hiff : forall x,
-               In x (edges (union (union g1 g2) g3) w)
-               <-> In x (edges (union g1 (union g2 g3)) w)).
-    { intro x. rewrite !edges_union. tauto. }
-    split; intros x Hx; [exact (proj1 (Hiff x) Hx) | exact (proj2 (Hiff x) Hx)].
+    apply graph_ext. intro w. intro x.
+    rewrite !edges_union. tauto.
   Qed.
 
   Lemma sources_empty :
@@ -153,6 +141,9 @@ Section ops.
     - simpl in Hroot. fwd. rewrite removelast_cons. apply incl_cons. 2: eauto.
       apply sources_spec. eapply in_not_nil. eassumption.
   Qed.
+
+  Definition all_nodes `{Eqb vertex} g :=
+    dedup eqb (flat_map (fun u => u :: edges g u) (sources g)).
 End ops.
 End graph.
 Global Coercion graph.rep : graph.graph >-> Sortclass.

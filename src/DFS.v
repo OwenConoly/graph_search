@@ -60,7 +60,6 @@ Section __.
       dfs_fold_state _ _ st (u :: p) g ->
       dfs_fold_state _ _ (finish' st u) p g.
 
-
     Lemma already_seen_tree_edge_upd st v y :
       already_seen st y = true -> already_seen (tree_edge_upd' st v) y = true.
     Proof.

@@ -254,7 +254,8 @@ Section GraphImpl.
     split;
       cbn [graph.rep graph.edges graph.empty graph.put graph.remove graph.sources graph_map].
     - intros g1 g2 Hsame. apply eq_grep. apply map.map_ext. intro k.
-      specialize (Hsame k). unfold same_set in Hsame. destruct Hsame as [H12 H21].
+      specialize (Hsame k). unfold same_set in Hsame.
+      pose proof (fun a => proj1 (Hsame a)) as H12. pose proof (fun a => proj2 (Hsame a)) as H21.
       destruct (map.get (raw g1) k) as [s1|] eqn:E1;
         destruct (map.get (raw g2) k) as [s2|] eqn:E2.
       + f_equal. apply map.map_ext. intro x.
