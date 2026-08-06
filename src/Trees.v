@@ -64,23 +64,21 @@ Section __.
   Lemma nodes_of_root t : In (root t) (nodes_of t).
   Proof. destruct t. simpl. left. reflexivity. Qed.
 
+  Ltac t :=
+    repeat match goal with
+      | _ => progress (intros; fwd; cbn [In] in *; subst)
+      | _ => contradiction || solve[eauto]
+      | H: _ \/ _ |- _ => destruct H
+      | |- _ <-> _ => split
+      end.
+
   Lemma edge_fold_union (gs : list graph) (g0 : graph) a b :
     graph.edge (fold_left graph.union gs g0) a b <->
     graph.edge g0 a b \/ exists g, In g gs /\ graph.edge g a b.
   Proof.
     revert g0. induction gs as [|g gs IH]; intros g0; cbn [fold_left].
-    - split.
-      + intros H. left. exact H.
-      + intros [H | [g [[] _]]]. exact H.
-    - rewrite IH, graph.edge_union. split.
-      + intros [[H|H] | [g' [Hin He]]].
-        * left. exact H.
-        * right. exists g. split; [left; reflexivity | exact H].
-        * right. exists g'. split; [right; exact Hin | exact He].
-      + intros [H | [g' [[Heq | Hin] He]]].
-        * left. left. exact H.
-        * left. right. subst g'. exact He.
-        * right. exists g'. split; [exact Hin | exact He].
+    - t.
+    - rewrite IH, graph.edge_union. t.
   Qed.
 
   Lemma edge_graph_of v ts a b :
@@ -90,17 +88,15 @@ Section __.
     cbn [graph_of]. rewrite graph.edge_union.
     assert (H1 : graph.edge (graph.put_edges graph.empty v (map root ts)) a b <->
                  a = v /\ In b (map root ts)).
-    { cbv [graph.edge]. rewrite graph.edges_put_edges, graph.edges_empty. cbn [In].
-      split.
-      - intros [[] | [Hv Hb]]. split; [symmetry; exact Hv | exact Hb].
-      - intros [Ha Hb]. right. split; [symmetry; exact Ha | exact Hb]. }
+    { cbv [graph.edge]. rewrite graph.edges_put_edges, graph.edges_empty.
+      t. }
     assert (H2 : graph.edge (fold_left graph.union (map graph_of ts) graph.empty) a b <->
                  exists s, In s ts /\ graph.edge (graph_of s) a b).
     { rewrite edge_fold_union. split.
       - intros [He | [g [Hg He]]].
         + exfalso. exact (graph.edge_empty _ _ He).
         + apply in_map_iff in Hg. destruct Hg as [s [Hgs Hin]]. subst g. exists s. auto.
-      - intros [s [Hs He]]. right. exists (graph_of s). split; [apply in_map; exact Hs | exact He]. }
+      - intros [s [Hs He]]. right. eexists. rewrite in_map_iff. t. }
     rewrite H1, H2. reflexivity.
   Qed.
 
@@ -200,12 +196,8 @@ Section __.
     - exfalso. subst a. apply (root_not_in_children v ts Hvalid).
       apply in_flat_map. exists s. auto.
     - assert (s' = s).
-      { eapply disjoint_children.
-        - exact Hvalid.
-        - exact Hs'.
-        - exact Hs.
-        - exact (proj1 (edge_nodes s' a b He)).
-        - exact Ha. }
+      { eapply disjoint_children; try eassumption.
+        apply edge_nodes in He. fwd. assumption. }
       subst s'. exact He.
   Qed.
 
