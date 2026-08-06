@@ -108,12 +108,12 @@ Section __.
       dfs_fold_state root st0 st p g -> graph.edge g x y -> already_seen st y = true.
     Proof.
       intro H. revert x y.
-      induction H; intros x y He; cbv [graph.edge] in He.
-      - rewrite graph.edges_empty in He. contradiction.
-      - rewrite graph.edges_put in He. destruct He as [Hold | [_ Hvy]].
+      induction H; intros x y He.
+      - apply graph.edge_empty in He. contradiction.
+      - apply graph.edge_put in He. destruct He as [Hold | [_ Hvy]].
         + apply already_seen_tree_edge_upd. eauto.
         + subst y. apply already_seen_tree_edge_upd_self.
-      - rewrite graph.edges_put in He. rewrite already_seen_untree_edge_upd.
+      - apply graph.edge_put in He. rewrite already_seen_untree_edge_upd.
         destruct He as [Hold | [_ Hvy]]; subst; eauto.
       - rewrite already_seen_finish'. eauto.
     Qed.
@@ -157,13 +157,13 @@ Section __.
       intros Hroot H. revert x y.
       induction H as [ | st2 u0 p0 g0 v Hne Hrec IH Hseen
                        | st2 u0 p0 g0 v Hrec IH Hne Hseen
-                       | st2 u2 p0 g0 Hrec IH ]; intros x y He; cbv [graph.edge] in He.
-      - rewrite graph.edges_empty in He. destruct He.
-      - rewrite graph.edges_put in He. destruct He as [Hold | [Hxhd _]].
+                       | st2 u2 p0 g0 Hrec IH ]; intros x y He.
+      - apply graph.edge_empty in He. destruct He.
+      - apply graph.edge_put in He. destruct He as [Hold | [Hxhd _]].
         + apply already_seen_tree_edge_upd. apply (IH x y). exact Hold.
         + subst x. apply already_seen_tree_edge_upd.
           apply (dfs_path_seen _ _ _ _ _ _ Hroot Hrec). apply in_eq.
-      - rewrite graph.edges_put in He. rewrite already_seen_untree_edge_upd.
+      - apply graph.edge_put in He. rewrite already_seen_untree_edge_upd.
         destruct He as [Hold | [Hxhd _]].
         + apply (IH x y). exact Hold.
         + subst x.
@@ -337,12 +337,12 @@ Section __.
               -- simpl in Hp0. apply set_contains_true in Hp0. split; [exact Hp0|].
                  apply set_contains_false in Hroot. assumption.
               -- simpl. rewrite eqb_refl_true by assumption. reflexivity.
-            + intros. cbv [graph.edge]. rewrite graph.edges_put. left.
+            + intros. rewrite graph.edge_put. left.
               apply Hp1p1; auto.
             + intros. cbv [graph.edge]. rewrite graph.edges_put.
               cbv [graph.edge] in Hp1p2. rewrite Hp1p2.
               simpl. split; intros [?|?]; fwd; auto.
-            + intros * H. cbv [graph.edge] in H. rewrite graph.edges_put in H.
+            + intros * H. apply graph.edge_put in H.
               destruct H as [H|H]; fwd; auto. }
         apply IHn in Hdfs.
         + fwd.

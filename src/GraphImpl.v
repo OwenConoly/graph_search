@@ -255,39 +255,38 @@ Section GraphImpl.
       cbn [graph.rep graph.edges graph.empty graph.put graph.remove graph.sources graph_map].
     - intros g1 g2 Hsame. apply eq_grep. apply map.map_ext. intro k.
       specialize (Hsame k). unfold same_set in Hsame.
-      pose proof (fun a => proj1 (Hsame a)) as H12. pose proof (fun a => proj2 (Hsame a)) as H21.
       destruct (map.get (raw g1) k) as [s1|] eqn:E1;
         destruct (map.get (raw g2) k) as [s2|] eqn:E2.
       + f_equal. apply map.map_ext. intro x.
         assert (E1e : edges g1 k = map.keys s1) by (unfold edges; rewrite E1; reflexivity).
         assert (E2e : edges g2 k = map.keys s2) by (unfold edges; rewrite E2; reflexivity).
-        rewrite E1e, E2e in H12, H21.
+        rewrite E1e, E2e in Hsame.
         destruct (map.get s1 x) as [u1|] eqn:Gx1;
           destruct (map.get s2 x) as [u2|] eqn:Gx2.
         * destruct u1, u2; reflexivity.
         * exfalso.
           assert (Hin : In x (map.keys s1)) by (apply in_keys_iff; rewrite Gx1; congruence).
-          apply H12 in Hin. apply in_keys_iff in Hin. rewrite Gx2 in Hin. congruence.
+          apply (proj1 (Hsame x)) in Hin. apply in_keys_iff in Hin. rewrite Gx2 in Hin. congruence.
         * exfalso.
           assert (Hin : In x (map.keys s2)) by (apply in_keys_iff; rewrite Gx2; congruence).
-          apply H21 in Hin. apply in_keys_iff in Hin. rewrite Gx1 in Hin. congruence.
+          apply (proj2 (Hsame x)) in Hin. apply in_keys_iff in Hin. rewrite Gx1 in Hin. congruence.
         * reflexivity.
       + exfalso.
         assert (E1e : edges g1 k = map.keys s1) by (unfold edges; rewrite E1; reflexivity).
         assert (E2e : edges g2 k = []) by (unfold edges; rewrite E2; reflexivity).
-        rewrite E1e, E2e in H12.
+        rewrite E1e, E2e in Hsame.
         pose proof (wfb_spec (raw g1) k s1 (raw_wf g1) E1) as Hn.
         apply nonemptyb_true_iff in Hn.
         destruct (map.keys s1) as [|x0 xs] eqn:K; [congruence|].
-        exact (H12 x0 (or_introl eq_refl)).
+        exact (proj1 (Hsame x0) (or_introl eq_refl)).
       + exfalso.
         assert (E1e : edges g1 k = []) by (unfold edges; rewrite E1; reflexivity).
         assert (E2e : edges g2 k = map.keys s2) by (unfold edges; rewrite E2; reflexivity).
-        rewrite E1e, E2e in H21.
+        rewrite E1e, E2e in Hsame.
         pose proof (wfb_spec (raw g2) k s2 (raw_wf g2) E2) as Hn.
         apply nonemptyb_true_iff in Hn.
         destruct (map.keys s2) as [|x0 xs] eqn:K; [congruence|].
-        exact (H21 x0 (or_introl eq_refl)).
+        exact (proj2 (Hsame x0) (or_introl eq_refl)).
       + reflexivity.
     - intro v. unfold edges, empty. cbn [raw]. rewrite map.get_empty. reflexivity.
     - intros g u u' v v'. rewrite !in_edges_iff.

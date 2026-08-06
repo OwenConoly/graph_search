@@ -1,5 +1,5 @@
 From Stdlib Require Import List.
-From coqutil Require Import Tactics.fwd Datatypes.List Eqb.
+From coqutil Require Import Tactics.fwd Datatypes.List Datatypes.ListSet Eqb.
 From GraphSearch Require Import List EdgeRel.
 Import ListNotations.
 
@@ -132,6 +132,14 @@ Section ops.
     edge (union g1 g2) x y <-> edge g1 x y \/ edge g2 x y.
   Proof. cbv [edge]. apply edges_union. Qed.
 
+  Lemma edge_empty x y :
+    ~ edge empty x y.
+  Proof. cbv [edge]. rewrite edges_empty. apply in_nil. Qed.
+
+  Lemma edge_put g u v x y :
+    edge (put g u v) x y <-> edge g x y \/ u = x /\ v = y.
+  Proof. cbv [edge]. apply edges_put. Qed.
+
   Lemma path_in_graph g root p :
     path (edge g) root p ->
     incl (removelast (root :: p)) (sources g).
@@ -142,8 +150,53 @@ Section ops.
       apply sources_spec. eapply in_not_nil. eassumption.
   Qed.
 
-  Definition all_nodes `{Eqb vertex} g :=
+  Context {eqbV : Eqb vertex} {eqbV_ok : Eqb_ok eqbV}.
+
+  Definition all_nodes g :=
     dedup eqb (flat_map (fun u => u :: edges g u) (sources g)).
+
+  Lemma all_nodes_empty :
+    all_nodes empty = [].
+  Proof. unfold all_nodes. rewrite sources_empty. reflexivity. Qed.
+
+  Lemma all_nodes_spec g u :
+    In u (all_nodes g) <-> (exists v, edge g u v \/ edge g v u).
+  Proof.
+    unfold all_nodes.
+    rewrite <- dedup_preserves_In by (exact eqb_boolspec).
+    rewrite in_flat_map. cbv [edge].
+    split.
+    - intros [w [Hw Hin]]. cbn [In] in Hin.
+      apply sources_spec in Hw. apply neq_nil_iff_exists_in in Hw.
+      destruct Hin as [Heq | Hin].
+      + subst w. destruct Hw as [x Hx]. exists x. left. exact Hx.
+      + exists w. right. exact Hin.
+    - intros [v [Hv | Hv]].
+      + exists u. split.
+        * apply sources_spec. eapply in_not_nil. exact Hv.
+        * cbn [In]. left. reflexivity.
+      + exists v. split.
+        * apply sources_spec. eapply in_not_nil. exact Hv.
+        * cbn [In]. right. exact Hv.
+  Qed.
+
+  Lemma all_nodes_put g u v u' :
+    In u' (all_nodes (put g u v)) <->
+      In u' (all_nodes g) \/ u' = u \/ u' = v.
+  Proof.
+    rewrite !all_nodes_spec. setoid_rewrite edge_put.
+    split.
+    - intros [w [[He|[Hu Hw]]|[He|[Hu Hw]]]].
+      + left; eauto.
+      + right; left; congruence.
+      + left; eauto.
+      + right; right; congruence.
+    - intros [[w [He|He]]|[Hu'|Hu']].
+      + exists w; left; left; exact He.
+      + exists w; right; left; exact He.
+      + subst u'. exists v; left; right; split; reflexivity.
+      + subst u'. exists u; right; right; split; reflexivity.
+  Qed.
 End ops.
 End graph.
 Global Coercion graph.rep : graph.graph >-> Sortclass.

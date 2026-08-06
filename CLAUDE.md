@@ -40,6 +40,7 @@ The `coqutil/` directory is a git submodule — don't edit it.
 - State lemma variables as named binders before the colon (no `forall` in statements); drop inferable type annotations; destructure tuples with descriptive names.
 - Leave at least one blank line before each `Definition`/`Lemma`/`Theorem`.
 - Close arithmetic goals with `lia`; prefer the shortest tactic invocation that works.
+- Use `;` as a genuine combinator — the same tactic applied to every subgoal the previous one produced (`induction n; simpl`) — or to close a split with one atomic tactic per branch (`split; [ assumption | reflexivity ]`). Never use `;` to sequence distinct steps (`… ; intros x y H; apply f in H; exact (g H)`) or nest `[ … | … ]` focusing: those are sequential/branching structure and get periods and bullets (`-`, `+`, `*`, `--`).
 - No dependently typed code (`eq_rect`, dependent `match` on equality proofs).
 - Don't use `classic` / `Classical_Prop` (or any classical axiom) unless the user explicitly says it's okay. Decidable props (e.g. `In` over an `Eqb` type) can be case-split constructively with `existsb`/`in_dec` instead.
 - Don't write comments about obvious things: no restating what a definition/lemma already says, no narrating Coq/section/`Arguments` mechanics, no justifying routine constructs. Comment only a genuinely non-obvious *why*, and keep it short. Default to no comment.

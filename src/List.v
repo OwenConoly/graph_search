@@ -58,6 +58,14 @@ Lemma last_cons_last_cons A (a : A) l d1 d2 :
   last (a :: l) d1 = last (a :: l) d2.
 Proof. do 2 rewrite last_cons. reflexivity. Qed.
 
+Lemma In_last A (l : list A) d :
+  l <> [] ->
+  In (last l d) l.
+Proof.
+  intros H. rewrite (app_removelast_last d H) at 2.
+  apply in_or_app. right. left. reflexivity.
+Qed.
+
 Section set_contains.
   Context {V : Type} {eqbV : Eqb V} {eqb_ok : Eqb_ok eqbV}.
 
