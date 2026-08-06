@@ -42,6 +42,7 @@ Section __.
   Qed.
 
   Definition root t := match t with tree_cons r _ => r end.
+  Definition children t := match t with tree_cons _ r => r end.
 
   Fixpoint nodes_of (t : tree) :=
     match t with
@@ -57,9 +58,33 @@ Section __.
           (fold_left graph.union (map graph_of ts) graph.empty)
     end.
 
-  Lemma graph_of_tree_impl_locally_tree t :
+  Lemma valid_tree_graph_edge t u :
+    valid_tree t ->
+    graph.edge (graph_of t) (root t) u ->
+    In u (map root (children t)).
+  Proof. Admitted.
+
+  Lemma not_in_no_edge :
+    ~In u (nodes_of t)
+
+  Lemma tree_path_cons t n p' :
+    valid_tree t ->
+    path (graph.edge (graph_of t)) (root t) (n :: p') ->
+    exists t',
+      In t' (children t) /\
+        root t' = n /\
+        path (graph.edge (graph_of t')) n p'.
+  Proof.
+    induction t. intros Hvalid Hpath. cbn [root path] in Hpath. fwd.
+    simpl. apply valid_tree_graph_edge in Hpathp0; [|assumption].
+    apply in_map_iff in Hpathp0. fwd. simpl in Hpathp0p1.
+    exists
+
+
+  Lemma graph_of_tree_is_tree t :
     valid_tree t ->
     is_tree (graph.edge (graph_of t)) (root t).
   Proof.
-    intros H. induction t. cbv [is_tree]. simpl. split.
+    intros H. induction t. cbv [is_tree]. cbn [root]. split.
+    - cbv [locally_tree]. cbv [path_to].
   Admitted.
