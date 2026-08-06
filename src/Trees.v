@@ -333,7 +333,6 @@ Section __.
 
 
   Lemma tree_of_valid_tree (g : graph) u :
-    is_tree (graph.edge g) u ->
     valid_tree (tree_of g u).
   Proof. Admitted.
 End __.
