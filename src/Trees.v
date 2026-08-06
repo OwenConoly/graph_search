@@ -1,6 +1,6 @@
 From GraphSearch Require Import DFS GraphInterface EdgeRel List.
 From coqutil Require Import Eqb Tactics.fwd Tactics Datatypes.List.
-From Stdlib Require Import List Lia.
+From Stdlib Require Import List Lia Permutation.
 Import ListNotations.
 
 Section __.
@@ -309,6 +309,7 @@ Section __.
   Qed.
 
   Context {eqbV : Eqb V}.
+  Context {eqbV_ok : Eqb_ok eqbV}.
 
   Definition tree_of (g : graph) root :=
     let '(_, tree_stack) :=
@@ -323,10 +324,104 @@ Section __.
     | _ => tree_cons root []
     end.
 
+  (* nodes appearing in every tree across every frame of the DFS stack *)
+  Definition stack_nodes (tss : list (list tree)) : list V :=
+    flat_map (flat_map nodes_of) tss.
+
+  Lemma stack_nodes_cons f tss :
+    stack_nodes (f :: tss) = flat_map nodes_of f ++ stack_nodes tss.
+  Proof. reflexivity. Qed.
+
+  Lemma stack_nodes_finish u ts ts' tss' :
+    stack_nodes ((tree_cons u ts :: ts') :: tss') = u :: stack_nodes (ts :: ts' :: tss').
+  Proof.
+    rewrite !stack_nodes_cons. cbn [flat_map nodes_of]. rewrite <- app_assoc. reflexivity.
+  Qed.
+
+  (* Along the DFS: one frame per open node plus the outer frame, and the nodes
+     collected so far (in the finished trees and on the path) are exactly the
+     distinct visited set. *)
+  Lemma tree_of_invariant (r : V) s pth (gg : graph) :
+    dfs_fold_state (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
+      (fun tss _ finished =>
+         match tss with
+         | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
+         | _ => []
+         end)
+      r ([r], [] :: [[]]) s pth gg ->
+    length (snd s) = S (length pth) /\
+    NoDup (stack_nodes (snd s) ++ pth) /\
+    incl (stack_nodes (snd s) ++ pth) (fst s).
+  Proof.
+    intros HD. induction HD as [
+      | st u pp g0 v Hnew Hsub IH Hseen
+      | st u pp g0 v Hsub IH Hnew Hseen
+      | st u pp g0 Hsub IH ].
+    - cbn [fst snd]. ssplit.
+      + reflexivity.
+      + rewrite !stack_nodes_cons. cbn [flat_map app].
+        apply NoDup_cons; [ intro Hc; destruct Hc | apply NoDup_nil ].
+      + rewrite !stack_nodes_cons. cbn [flat_map app]. apply incl_refl.
+    - destruct st as [svs tss]. cbn [fst snd tree_edge_upd'] in IH |- *.
+      cbn [already_seen] in Hseen. apply set_contains_false in Hseen. fwd.
+      assert (Hvni : ~ In v (stack_nodes tss ++ (u :: pp))).
+      { intro Hv. apply Hseen. apply IHp2. exact Hv. }
+      ssplit.
+      + cbn [length] in IHp0 |- *. lia.
+      + rewrite stack_nodes_cons. cbn [flat_map app].
+        apply (Permutation_NoDup (l := v :: stack_nodes tss ++ (u :: pp))).
+        * apply Permutation_middle.
+        * apply NoDup_cons; [ exact Hvni | exact IHp1 ].
+      + rewrite stack_nodes_cons. cbn [flat_map app].
+        intros x Hx. apply in_app_or in Hx. destruct Hx as [Hx | Hx].
+        * right. apply IHp2. apply in_or_app. left. exact Hx.
+        * cbn [In] in Hx. destruct Hx as [Hv | Hx].
+          -- left. exact Hv.
+          -- right. apply IHp2. apply in_or_app. right. exact Hx.
+    - destruct st as [svs tss]. cbn [fst snd untree_edge_upd'] in IH |- *. exact IH.
+    - destruct st as [svs tss]. cbn [fst snd finish'] in IH |- *. fwd.
+      destruct tss as [| ts [| ts' tss']].
+      + cbn [length] in IHp0. lia.
+      + cbn [length] in IHp0. lia.
+      + assert (Hu_in : In u (stack_nodes (ts :: ts' :: tss') ++ (u :: pp))).
+        { apply in_or_app. right. left. reflexivity. }
+        ssplit.
+        * cbn [length] in IHp0 |- *. lia.
+        * rewrite stack_nodes_finish. cbn [app].
+          apply (Permutation_NoDup (l := stack_nodes (ts :: ts' :: tss') ++ (u :: pp))).
+          -- apply Permutation_sym. apply Permutation_middle.
+          -- exact IHp1.
+        * rewrite stack_nodes_finish. cbn [app].
+          intros x Hx. destruct Hx as [Hu | Hx].
+          -- subst x. apply IHp2. exact Hu_in.
+          -- apply IHp2. apply in_app_or in Hx. apply in_or_app.
+             destruct Hx as [Hx | Hx]; [ left; exact Hx | right; right; exact Hx ].
+  Qed.
 
   Lemma tree_of_valid_tree (g : graph) u :
     valid_tree (tree_of g u).
-  Proof. Admitted.
+  Proof.
+    cbv [tree_of].
+    destruct (dfs_fold (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
+                (fun tss _ finished =>
+                   match tss with
+                   | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
+                   | _ => []
+                   end) g [[]] u) as [vs tss] eqn:E.
+    apply dfs_fold_spec in E. fwd.
+    simpl in Ep1. apply tree_of_invariant in Ep1. cbn [fst snd] in Ep1. fwd.
+    rewrite app_nil_r in Ep1p1.
+    destruct tss as [| fr [| fr' tss']].
+    - cbn [length] in Ep1p0. lia.
+    - destruct fr as [| t [| t' fr'']].
+      + cbv [valid_tree]. cbn [nodes_of flat_map].
+        apply NoDup_cons; [ intro Hc; destruct Hc | apply NoDup_nil ].
+      + cbv [valid_tree]. rewrite !stack_nodes_cons in Ep1p1. cbn [flat_map app] in Ep1p1.
+        rewrite !app_nil_r in Ep1p1. exact Ep1p1.
+      + cbv [valid_tree]. cbn [nodes_of flat_map].
+        apply NoDup_cons; [ intro Hc; destruct Hc | apply NoDup_nil ].
+    - cbn [length] in Ep1p0. lia.
+  Qed.
 
   Lemma graph_of_tree_of (g : graph) u :
     is_tree (graph.edge g) u ->
