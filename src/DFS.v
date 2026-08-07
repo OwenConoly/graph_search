@@ -556,5 +556,15 @@ Section __.
     - apply H1p1 in He. fwd. auto.
     - fwd. apply H1p1. eauto.
   Qed.
+
+  Lemma dfs_fold_state_vs_good root st0 st vs p g :
+    dfs_fold_state root st0 (vs, st) p g ->
+    same_set vs (root :: graph.all_nodes g).
+  Proof. Admitted.
+
+  Lemma dfs_fold_state_p_good root st0 st vs p g :
+    dfs_fold_state root st0 (vs, st) p g ->
+    incl p vs.
+  Proof. Admitted.
   End fold.
 End __.

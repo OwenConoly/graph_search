@@ -25,6 +25,7 @@ Class ok {vertex} {graph : graph vertex} : Prop := {
     edges_put : forall g u u' v v', In v' (edges (put g u v) u') <-> In v' (edges g u') \/ u = u' /\ v = v';
     edges_remove : forall g u v u' v', In v' (edges (remove g u v) u') <-> In v' (edges g u') /\ (u <> u' \/ v <> v');
     sources_spec : forall g u, In u (sources g) <-> edges g u <> nil;
+    sources_NoDup : forall g, NoDup (sources g);
     edges_NoDup : forall g u, NoDup (edges g u);
   }.
 Arguments ok {_} _.
@@ -154,6 +155,9 @@ Section ops.
 
   Definition all_nodes g :=
     dedup eqb (flat_map (fun u => u :: edges g u) (sources g)).
+
+  Definition all_edges g :=
+    flat_map (fun u => map (pair u) (edges g u)) (sources g).
 
   Lemma all_nodes_empty :
     all_nodes empty = [].
