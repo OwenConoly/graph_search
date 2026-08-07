@@ -168,6 +168,12 @@ Section ops.
   Definition reachable_subgraph (g : graph) root (g' : graph) :=
     forall u v, edge g' u v <-> edge g u v /\ reaches (edge g) root u.
 
+  Lemma reachable_subgraph_unique g root g1 g2 :
+    reachable_subgraph g root g1 ->
+    reachable_subgraph g root g2 ->
+    g1 = g2.
+  Admitted.
+
   Context {eqbV : Eqb vertex} {eqbV_ok : Eqb_ok eqbV}.
 
   Definition all_nodes g :=
@@ -244,6 +250,9 @@ Section ops.
   Definition is_tree g root :=
     all_reachable (edge g) root /\
       S (num_edges g) = num_nodes g root.
+
+  Definition is_locally_tree g root :=
+    exists g', reachable_subgraph g root g' /\ S (num_edges g') = num_nodes g' root.
 
   Lemma num_edges_empty :
     num_edges empty = O.

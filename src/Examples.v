@@ -45,16 +45,15 @@ Section __.
     - assumption.
   Admitted.
 
-(*
   Lemma check_tree_spec g root :
-    Reflects (locally_tree (graph.edge g) root) (check_locally_tree g root).
+    Reflects (graph.is_locally_tree g root) (check_locally_tree g root).
   Proof.
     cbv [check_locally_tree]. Tactics.destruct_one_match.
     apply dfs_fold_spec in E. fwd.
     apply check_tree_spec' in Ep1.
-    Print locally_tree.
-    About locally_tree.
-  Admitted.
-*)
-
+    eapply Reflects_iff; [eassumption|].
+    cbv [graph.is_locally_tree]. split; intros H; fwd; eauto.
+    eapply graph.reachable_subgraph_unique in Ep0; [|exact Hp0].
+    subst. assumption.
+  Qed.
 End __.
