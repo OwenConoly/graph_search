@@ -3,6 +3,15 @@ From coqutil Require Import Tactics.fwd Datatypes.List Datatypes.ListSet Eqb.
 From GraphSearch Require Import List EdgeRel.
 Import ListNotations.
 
+(*some dumb tactic that isn't even particularly related to graphs.*)
+Ltac graph :=
+  repeat match goal with
+    | _ => progress (intros; fwd; cbn [In] in *; subst)
+    | _ => contradiction || solve[eauto]
+    | H: _ \/ _ |- _ => destruct H
+    | |- _ <-> _ => split
+    end.
+
 (*closely following Map.Interface, because idk what i am doing*)
 Module graph.
 Class graph {vertex} := {
@@ -53,10 +62,7 @@ Section ops.
   Proof.
     revert g1. induction ss as [|a ss IH]; intros g1; cbn [fold_left In].
     - tauto.
-    - rewrite IH, edges_put_edges. cbn [In].
-      split.
-      + intros [[?|[-> ?]]|[? ?]]; auto 7.
-      + intros [?|[[->|?] ?]]; auto 7.
+    - rewrite IH, edges_put_edges. graph.
   Qed.
 
   Lemma edges_union g1 g2 u' v' :
@@ -132,6 +138,15 @@ Section ops.
     edge (union g1 g2) x y <-> edge g1 x y \/ edge g2 x y.
   Proof. cbv [edge]. apply edges_union. Qed.
 
+  Lemma edge_fold_union (gs : list graph) (g0 : graph) a b :
+    edge (fold_left union gs g0) a b <->
+    edge g0 a b \/ exists g, In g gs /\ edge g a b.
+  Proof.
+    revert g0. induction gs as [|g gs IH]; intros g0; cbn [fold_left].
+    - graph.
+    - rewrite IH, edge_union. graph.
+  Qed.
+
   Lemma edge_empty x y :
     ~ edge empty x y.
   Proof. cbv [edge]. rewrite edges_empty. apply in_nil. Qed.
@@ -188,17 +203,7 @@ Section ops.
       In u' (all_nodes g) \/ u' = u \/ u' = v.
   Proof.
     rewrite !all_nodes_spec. setoid_rewrite edge_put.
-    split.
-    - intros [w [[He|[Hu Hw]]|[He|[Hu Hw]]]].
-      + left; eauto.
-      + right; left; congruence.
-      + left; eauto.
-      + right; right; congruence.
-    - intros [[w [He|He]]|[Hu'|Hu']].
-      + exists w; left; left; exact He.
-      + exists w; right; left; exact He.
-      + subst u'. exists v; left; right; split; reflexivity.
-      + subst u'. exists u; right; right; split; reflexivity.
+    graph.
   Qed.
 
   Lemma all_nodes_NoDup g :
@@ -209,11 +214,10 @@ Section ops.
     In (a, b) (all_edges g) <-> edge g a b.
   Proof.
     unfold all_edges, edge. rewrite in_flat_map. split.
-    - intros [u [Hu Hin]]. apply in_map_iff in Hin. destruct Hin as [w [Heq Hw]].
-      injection Heq as <- <-. exact Hw.
+    - intros [u [Hu Hin]]. apply in_map_iff in Hin. graph.
     - intro Hb. exists a. split.
       + apply sources_spec. eapply in_not_nil. exact Hb.
-      + apply in_map_iff. exists b. split; [ reflexivity | exact Hb ].
+      + apply in_map_iff. eauto.
   Qed.
 
   Lemma all_edges_NoDup g :
@@ -227,6 +231,71 @@ Section ops.
       apply in_map_iff in Hin1. destruct Hin1 as [w1 [Heq1 _]].
       apply in_map_iff in Hin2. destruct Hin2 as [w2 [Heq2 _]].
       congruence.
+  Qed.
+  Definition num_nodes g root :=
+    length (list_union eqb [root] (all_nodes g)).
+
+  Definition num_edges g :=
+    length (all_edges g).
+
+  Lemma num_edges_empty :
+    num_edges empty = O.
+  Proof. unfold num_edges, all_edges. rewrite sources_empty. reflexivity. Qed.
+
+  Lemma num_nodes_empty root :
+    num_nodes empty root = S O.
+  Proof. unfold num_nodes. rewrite all_nodes_empty. reflexivity. Qed.
+
+  Lemma num_edges_put g u v :
+    ~edge g u v ->
+    num_edges (put g u v) = S (num_edges g).
+  Proof.
+    intro Hne. unfold num_edges.
+    transitivity (length ((u, v) :: all_edges g)).
+    - apply NoDup_same_length.
+      + apply all_edges_NoDup.
+      + apply NoDup_cons.
+        * rewrite In_all_edges. exact Hne.
+        * apply all_edges_NoDup.
+      + intros [a b]. rewrite In_all_edges, edge_put. cbn [In].
+        rewrite In_all_edges, pair_equal_spec. tauto.
+    - reflexivity.
+  Qed.
+
+  Lemma num_nodes_put01 g root u v :
+    In u (root :: all_nodes g) ->
+    ~In v (all_nodes g) ->
+    v <> root ->
+    num_nodes (put g u v) root = S (num_nodes g root).
+  Proof.
+    intros Hu Hv Hvr. cbn [In] in Hu. unfold num_nodes.
+    transitivity (length (v :: list_union eqb [root] (all_nodes g))).
+    - apply NoDup_same_length.
+      + apply list_union_preserves_NoDup. apply all_nodes_NoDup.
+      + apply NoDup_cons.
+        * rewrite In_list_union_spec. cbn [In].
+          intros [[Hr | []] | Hin]; [ congruence | exact (Hv Hin) ].
+        * apply list_union_preserves_NoDup. apply all_nodes_NoDup.
+      + intro x. rewrite In_list_union_spec, all_nodes_put. cbn [In].
+        rewrite In_list_union_spec. cbn [In].
+        split.
+        * intros [Hr | [Hg | [Hxu | Hxv]]]; subst; tauto.
+        * intros [Hxv | [Hr | Hg]]; subst; tauto.
+    - reflexivity.
+  Qed.
+
+  Lemma num_nodes_put00 g root u v :
+    In u (root :: all_nodes g) ->
+    In v (root :: all_nodes g) ->
+    num_nodes (put g u v) root = num_nodes g root.
+  Proof.
+    intros Hu Hv. unfold num_nodes. apply NoDup_same_length.
+    - apply list_union_preserves_NoDup. apply all_nodes_NoDup.
+    - apply list_union_preserves_NoDup. apply all_nodes_NoDup.
+    - intro x. rewrite !In_list_union_spec, all_nodes_put. cbn [In] in *.
+      split.
+      + intros [Hr | [Hg | [Hxu | Hxv]]]; subst; tauto.
+      + tauto.
   Qed.
 End ops.
 End graph.

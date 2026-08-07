@@ -64,23 +64,6 @@ Section __.
   Lemma nodes_of_root t : In (root t) (nodes_of t).
   Proof. destruct t. simpl. left. reflexivity. Qed.
 
-  Ltac t :=
-    repeat match goal with
-      | _ => progress (intros; fwd; cbn [In] in *; subst)
-      | _ => contradiction || solve[eauto]
-      | H: _ \/ _ |- _ => destruct H
-      | |- _ <-> _ => split
-      end.
-
-  Lemma edge_fold_union (gs : list graph) (g0 : graph) a b :
-    graph.edge (fold_left graph.union gs g0) a b <->
-    graph.edge g0 a b \/ exists g, In g gs /\ graph.edge g a b.
-  Proof.
-    revert g0. induction gs as [|g gs IH]; intros g0; cbn [fold_left].
-    - t.
-    - rewrite IH, graph.edge_union. t.
-  Qed.
-
   Lemma edge_graph_of v ts a b :
     graph.edge (graph_of (tree_cons v ts)) a b <->
     (a = v /\ In b (map root ts)) \/ (exists s, In s ts /\ graph.edge (graph_of s) a b).
@@ -89,14 +72,14 @@ Section __.
     assert (H1 : graph.edge (graph.put_edges graph.empty v (map root ts)) a b <->
                  a = v /\ In b (map root ts)).
     { cbv [graph.edge]. rewrite graph.edges_put_edges, graph.edges_empty.
-      t. }
+      graph. }
     assert (H2 : graph.edge (fold_left graph.union (map graph_of ts) graph.empty) a b <->
                  exists s, In s ts /\ graph.edge (graph_of s) a b).
-    { rewrite edge_fold_union. split.
+    { rewrite graph.edge_fold_union. split.
       - intros [He | [g [Hg He]]].
         + exfalso. exact (graph.edge_empty _ _ He).
         + apply in_map_iff in Hg. destruct Hg as [s [Hgs Hin]]. subst g. exists s. auto.
-      - intros [s [Hs He]]. right. eexists. rewrite in_map_iff. t. }
+      - intros [s [Hs He]]. right. eexists. rewrite in_map_iff. graph. }
     rewrite H1, H2. reflexivity.
   Qed.
 
