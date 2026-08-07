@@ -12,10 +12,6 @@ Section __.
       dfs_fold (fun _ _ _ => false) (fun tree _ _ => tree) (fun tree _ _ => tree) g true root in
     is_tree.
 
-  Definition is_tree g root :=
-    all_reachable (graph.edge g) root /\
-      S (graph.num_edges g) = graph.num_nodes g root.
-
   Notation Reflects x := (BoolSpec x (~x)).
 
   Lemma Reflects_iff P Q b :
@@ -49,6 +45,7 @@ Section __.
     - assumption.
   Admitted.
 
+(*
   Lemma check_tree_spec g root :
     Reflects (locally_tree (graph.edge g) root) (check_locally_tree g root).
   Proof.
@@ -58,5 +55,6 @@ Section __.
     Print locally_tree.
     About locally_tree.
   Admitted.
+*)
 
 End __.

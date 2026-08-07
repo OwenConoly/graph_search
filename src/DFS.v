@@ -513,13 +513,10 @@ Section __.
     apply paths_limited.
   Qed.
 
-  Definition reachable_subgraph root (g' g : graph) :=
-    forall u v, graph.edge g' u v <-> graph.edge g u v /\ reaches (graph.edge g) root u.
-
   Definition dfs_fold_spec g st0 root vs st :
     dfs_fold g st0 root = (vs, st) ->
     exists g',
-      reachable_subgraph root g' g /\
+      graph.reachable_subgraph g root g' /\
         dfs_fold_state root (root :: []) (tree_edge_upd st0 [] root) vs st [] g'.
   Proof.
     intros H.
@@ -527,7 +524,7 @@ Section __.
     pose proof dfs_fold_explores_everything as H2. specialize H2 with (1 := H).
     pose proof dfs_fold_connected as H3. specialize H3 with (1 := H).
     exists g_acc. split; [|assumption].
-    cbv [reachable_subgraph].
+    cbv [graph.reachable_subgraph].
     intros. split; intros He.
     - apply H1p1 in He. fwd. auto.
     - fwd. apply H1p1. eauto.

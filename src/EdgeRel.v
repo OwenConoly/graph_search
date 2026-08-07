@@ -21,16 +21,8 @@ Section __.
     Definition reaches first last :=
       exists p, path_to first p last.
 
-    Definition locally_tree root :=
-      forall n p1 p2,
-        path_to root p1 n ->
-        path_to root p2 n ->
-        p1 = p2.
-
     Definition all_reachable root :=
       forall u v, edge u v -> reaches root u.
-
-    Definition is_tree root := locally_tree root /\ all_reachable root.
   End path.
 
   Lemma reaches_self R u :
@@ -107,12 +99,4 @@ Section __.
       + apply IH; assumption.
   Qed.
 
-  Lemma locally_tree_weaken R1 R2 root :
-    (forall x y, R1 x y -> R2 x y) ->
-    locally_tree R2 root ->
-    locally_tree R1 root.
-  Proof.
-    intros HR H12 n p1 p2 [Hp1 Hl1] [Hp2 Hl2].
-    apply (H12 n); (split; [ eapply path_weaken; eassumption | eassumption ]).
-  Qed.
 End __.

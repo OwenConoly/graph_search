@@ -235,62 +235,6 @@ Section __.
       + apply edge_graph_of. left. split; [reflexivity | apply in_map; exact Hs].
   Qed.
 
-  Lemma graph_of_locally_tree t :
-    valid_tree t ->
-    locally_tree (graph.edge (graph_of t)) (root t).
-  Proof.
-    induction t as [v ts IH] using tree_ind. intros Hvalid. cbn [root].
-    rewrite Forall_forall in IH.
-    intros n p1 p2 [Hp1 Hl1] [Hp2 Hl2].
-    destruct p1 as [|b1 p1']; destruct p2 as [|b2 p2'].
-    - reflexivity.
-    - exfalso. cbn [last] in Hl1.
-      destruct (tree_path_cons (tree_cons v ts) b2 p2' Hvalid Hp2) as [s2 [Hs2 [Hb2 Hpath2]]].
-      cbn [children] in Hs2. rewrite last_cons in Hl2.
-      assert (Hin : In v (nodes_of s2)).
-      { rewrite <- Hl1, Hl2. apply path_last_in_nodes.
-        - rewrite <- Hb2. apply nodes_of_root.
-        - exact Hpath2. }
-      apply (root_not_in_children v ts Hvalid). apply in_flat_map. exists s2. auto.
-    - exfalso. cbn [last] in Hl2.
-      destruct (tree_path_cons (tree_cons v ts) b1 p1' Hvalid Hp1) as [s1 [Hs1 [Hb1 Hpath1]]].
-      cbn [children] in Hs1. rewrite last_cons in Hl1.
-      assert (Hin : In v (nodes_of s1)).
-      { rewrite <- Hl2, Hl1. apply path_last_in_nodes.
-        - rewrite <- Hb1. apply nodes_of_root.
-        - exact Hpath1. }
-      apply (root_not_in_children v ts Hvalid). apply in_flat_map. exists s1. auto.
-    - destruct (tree_path_cons (tree_cons v ts) b1 p1' Hvalid Hp1) as [s1 [Hs1 [Hb1 Hpath1]]].
-      destruct (tree_path_cons (tree_cons v ts) b2 p2' Hvalid Hp2) as [s2 [Hs2 [Hb2 Hpath2]]].
-      cbn [children] in Hs1, Hs2. rewrite last_cons in Hl1, Hl2.
-      assert (Hn1 : In n (nodes_of s1)).
-      { rewrite Hl1. apply path_last_in_nodes.
-        - rewrite <- Hb1. apply nodes_of_root.
-        - exact Hpath1. }
-      assert (Hn2 : In n (nodes_of s2)).
-      { rewrite Hl2. apply path_last_in_nodes.
-        - rewrite <- Hb2. apply nodes_of_root.
-        - exact Hpath2. }
-      assert (Hss : s1 = s2) by (eapply disjoint_children; eassumption).
-      subst s2.
-      rewrite <- Hb1 in Hpath1, Hl1. rewrite <- Hb2 in Hpath2, Hl2.
-      pose proof (IH s1 Hs1 (valid_tree_child v ts s1 Hvalid Hs1)) as Hlt.
-      assert (Hpp : p1' = p2').
-      { apply (Hlt n).
-        - split; [exact Hpath1 | exact Hl1].
-        - split; [exact Hpath2 | exact Hl2]. }
-      rewrite <- Hb1, <- Hb2, Hpp. reflexivity.
-  Qed.
-
-  Lemma graph_of_tree_is_tree t :
-    valid_tree t ->
-    is_tree (graph.edge (graph_of t)) (root t).
-  Proof.
-    intro Hvalid. cbv [is_tree]. split.
-    - apply graph_of_locally_tree. exact Hvalid.
-    - apply graph_of_all_reachable. exact Hvalid.
-  Qed.
-
   Context {eqbV : Eqb V}.
   Context {eqbV_ok : Eqb_ok eqbV}.
 
@@ -406,8 +350,4 @@ Section __.
     - cbn [length] in Ep1p0. lia.
   Qed.
 
-  Lemma graph_of_tree_of (g : graph) u :
-    is_tree (graph.edge g) u ->
-    graph_of (tree_of g u) = g.
-  Proof. Admitted.
 End __.
