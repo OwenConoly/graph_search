@@ -44,21 +44,21 @@ Section __.
       Definition dfs_fold st0 := dfs_fold' (3 + length (graph.sources g)) ([], st0).
     End with_graph.
 
-    Inductive dfs_fold_state (root : V) (st0 : state') : state' -> list V (*current path*)-> graph (*explored edges*) -> Prop :=
-    | dfs_init : dfs_fold_state _ _ st0 [root] graph.empty
-    | dfs_tree_edge st u p g v :
+    Inductive dfs_fold_state (root : V) vs0 st0 : list V (*seen*) -> state -> list V (*current path*)-> graph (*explored edges*) -> Prop :=
+    | dfs_init : dfs_fold_state _ _ _ vs0 st0 [root] graph.empty
+    | dfs_tree_edge vs st u p g v :
       ~graph.edge g u v ->
-      dfs_fold_state _ _ st (u :: p) g ->
-      already_seen st v = false ->
-      dfs_fold_state _ _ (tree_edge_upd' st v) (v :: u :: p) (graph.put g u v)
-    | dfs_untree_edge st u p g v :
-      dfs_fold_state _ _ st (u :: p) g ->
+      dfs_fold_state _ _ _ vs st (u :: p) g ->
+      set_contains vs v = false ->
+      dfs_fold_state _ _ _ (v :: vs) (tree_edge_upd st vs v) (v :: u :: p) (graph.put g u v)
+    | dfs_untree_edge vs st u p g v :
+      dfs_fold_state _ _ _ vs st (u :: p) g ->
       ~graph.edge g u v ->
-      already_seen st v = true ->
-      dfs_fold_state _ _ (untree_edge_upd' st v) (u :: p) (graph.put g u v)
-    | dfs_finish st u p g :
-      dfs_fold_state _ _ st (u :: p) g ->
-      dfs_fold_state _ _ (finish' st u) p g.
+      set_contains vs v = true ->
+      dfs_fold_state _ _ _ vs (untree_edge_upd st vs v) (u :: p) (graph.put g u v)
+    | dfs_finish vs st u p g :
+      dfs_fold_state _ _ _ vs st (u :: p) g ->
+      dfs_fold_state _ _ _ vs (finish st vs u) p g.
 
     Lemma already_seen_tree_edge_upd st v y :
       already_seen st y = true -> already_seen (tree_edge_upd' st v) y = true.
@@ -558,10 +558,16 @@ Section __.
   Qed.
 
   Lemma dfs_fold_state_vs_good root st0 st vs p g :
-    dfs_fold_state root st0 (vs, st) p g ->
+    dfs_fold_state root ([root], st0) (vs, st) p g ->
     same_set vs (root :: graph.all_nodes g).
-  Proof. Admitted.
+  Proof.
+    intros H. remember (vs, st) as st' eqn:E. revert vs st E.
+    induction H; intros; fwd.
+    - rewrite graph.all_nodes_empty. Fail apply same_set_refl. admit.
+    - destruct st. simpl in *. fwd.
 
+
+    (*TODO this could be much stronger.   i'll strengthen it when needed*)
   Lemma dfs_fold_state_p_good root st0 st vs p g :
     dfs_fold_state root st0 (vs, st) p g ->
     incl p vs.
