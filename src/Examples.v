@@ -38,11 +38,6 @@ Section __.
     num_nodes graph.empty root = S O.
   Proof. Admitted.
 
-  Lemma same_set_refl A (x : list A) :
-    same_set x x.
-  Proof. Admitted.
-  Hint Immediate same_set_refl : core.
-
   Lemma dfs_check_invariant (root : V) vs is_tree p (g : graph) :
     dfs_fold_state (fun _ _ _ => false) (fun tree _ _ => tree) (fun tree _ _ => tree)
       root ([root], true) (vs, is_tree) p g ->

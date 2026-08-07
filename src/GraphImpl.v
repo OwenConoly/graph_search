@@ -1,6 +1,6 @@
 From Stdlib Require Import List Eqdep_dec.
 From coqutil Require Import Map.Interface Map.Properties Eqb Tactics.destr.
-From GraphSearch Require Import GraphInterface.
+From GraphSearch Require Import GraphInterface List.
 Import ListNotations.
 
 Section GraphImpl.
@@ -303,6 +303,7 @@ Section GraphImpl.
       + split.
         * intro Hin. apply map.in_keys_inv in Hin. rewrite E in Hin. congruence.
         * intro H. congruence.
+    - intro g. unfold sources. apply map.keys_NoDup.
     - intros g u. unfold edges. destruct (map.get (raw g) u) as [s|] eqn:E.
       + apply map.keys_NoDup.
       + constructor.

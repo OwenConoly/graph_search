@@ -3,7 +3,6 @@ From coqutil Require Import Tactics.fwd Datatypes.List Datatypes.ListSet Eqb.
 From GraphSearch Require Import List EdgeRel.
 Import ListNotations.
 
-Definition same_set {A} (l1 l2 : list A) := forall a, In a l1 <-> In a l2.
 (*closely following Map.Interface, because idk what i am doing*)
 Module graph.
 Class graph {vertex} := {

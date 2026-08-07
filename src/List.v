@@ -2,6 +2,14 @@ From Stdlib Require Import List Lia.
 From coqutil Require Import Datatypes.List Datatypes.ListSet Eqb.
 Import ListNotations.
 
+Definition same_set {A} (l1 l2 : list A) := forall a, In a l1 <-> In a l2.
+
+Lemma same_set_refl A (x : list A) :
+  same_set x x.
+Proof. intros a. reflexivity. Qed.
+
+Hint Immediate same_set_refl : core.
+
 Lemma fold_right_inv_NoDup {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a :
   NoDup l ->
   P [] a ->
