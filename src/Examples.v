@@ -1,6 +1,6 @@
 From GraphSearch Require Import DFS GraphInterface EdgeRel List.
 From coqutil Require Import Eqb Tactics.fwd Tactics Datatypes.List Datatypes.ListSet.
-From Stdlib Require Import List.
+From Stdlib Require Import List Lia.
 Import ListNotations.
 
 Section __.
@@ -38,21 +38,50 @@ Section __.
     num_nodes graph.empty root = S O.
   Proof. Admitted.
 
+  Lemma num_edges_put g u v :
+    ~graph.edge g u v ->
+    num_edges (graph.put g u v) = S (num_edges g).
+  Proof. Admitted.
+
+  Lemma num_nodes_put01 g root u v :
+    In u (root :: graph.all_nodes g) ->
+    ~In v (graph.all_nodes g) ->
+    v <> root ->
+    num_nodes (graph.put g u v) root = S (num_nodes g root).
+  Proof. Admitted.
+
+  Lemma num_nodes_put00 g root u v :
+    In u (root :: graph.all_nodes g) ->
+    In v (root :: graph.all_nodes g) ->
+    num_nodes (graph.put g u v) root = num_nodes g root.
+  Proof. Admitted.
+
   Lemma dfs_check_invariant (root : V) vs is_tree p (g : graph) :
     dfs_fold_state (fun _ _ _ => false) (fun tree _ _ => tree) (fun tree _ _ => tree)
-      root ([root], true) (vs, is_tree) p g ->
-    same_set vs (root :: graph.all_nodes g) /\
+      root [root] true vs is_tree p g ->
     Reflects (S (num_edges g) = num_nodes g root) is_tree.
   Proof.
-    intros H. remember (vs, is_tree) as st eqn:E. revert vs is_tree E.
-    induction H; intros vs is_tree E.
-    - simpl in E; fwd. rewrite num_nodes_empty, num_edges_empty, graph.all_nodes_empty.
-      auto.
-    - destruct st. simpl in *. apply set_contains_false in H1. fwd.
-      specialize (IHdfs_fold_state _ _ eq_refl). fwd. split.
-      + cbv [same_set] in *. intros. simpl. rewrite IHdfs_fold_statep0. simpl.
-        rewrite graph.all_nodes_put. split; intros H'; repeat destruct H' as [H'|H']; subst; auto.
-      Search graph.all_nodes.
+    induction 1;
+      try match goal with
+      | H: dfs_fold_state _ _ _ _ _ _ _ _ _ _ |- _ => rename H into IH0; apply dfs_fold_state_invs in IH0; fwd
+      end.
+    - rewrite num_nodes_empty, num_edges_empty. auto.
+    - apply set_contains_false in H1. eapply Reflects_iff; [eassumption|].
+      rewrite num_edges_put by assumption. rewrite num_nodes_put01.
+      + lia.
+      + apply IH0p0. apply IH0p1. simpl. auto.
+      + intro. apply H1. apply IH0p0. simpl. auto.
+      + intro. subst. auto.
+    - apply set_contains_true in H1. constructor.
+      rewrite num_edges_put by assumption. rewrite num_nodes_put00.
+      +
+
+      eapply Reflects_iff; [eassumption|].
+      specialize (IH0p1 u ltac:(simpl; eauto)). apply IH0p0 in IH0p1.
+      destruct IH0p1 as [IH0p1|IH0p1].
+      + subst.
+      apply IH0p0 in IH0p1.
+        destruct IH0p1; auto. subst.
 
       ssplit.
       + eapply Reflects_iff; [eassumption|].

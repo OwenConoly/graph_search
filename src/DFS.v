@@ -546,6 +546,11 @@ Section __.
     apply incl_cons_inv in IHdfs_fold_state. fwd. auto.
   Qed.
 
+  Lemma dfs_fold_state_root_seen root st0 vs st p g :
+    dfs_fold_state root [root] st0 vs st p g ->
+    In root vs.
+  Proof. induction 1; simpl; auto. Qed.
+
   Lemma dfs_fold_state_vs_good root st0 vs st p g :
     dfs_fold_state root [root] st0 vs st p g ->
     same_set vs (root :: graph.all_nodes g).
@@ -564,6 +569,55 @@ Section __.
         simpl. auto.
       + apply set_contains_true in H1. apply IHdfs_fold_state. auto.
     - assumption.
+  Qed.
+
+  Lemma all_reachable_all_nodes g root u :
+    all_reachable (graph.edge g) root ->
+    In u (graph.all_nodes g) ->
+    reaches (graph.edge g) root u.
+  Proof. Admitted.
+
+  Lemma dfs_fold_state_all_reachable root st0 vs st p g :
+    dfs_fold_state root [root] st0 vs st p g ->
+    all_reachable (graph.edge g) root.
+  Proof.
+    induction 1; cbv [all_reachable]; intros u' v' Huv.
+    - apply graph.edge_empty in Huv. contradiction.
+    - apply graph.edge_put in Huv. destruct Huv as [Huv|Huv].
+      + eapply reaches_weaken; [|eapply IHdfs_fold_state; eauto].
+        intros. apply graph.edge_put. auto.
+      + fwd.
+        pose proof dfs_fold_state_p_good as Hp. especialize Hp; [eassumption|].
+        pose proof dfs_fold_state_vs_good as Hvs. especialize Hvs; [eassumption|].
+        specialize (Hp u' ltac:(simpl; auto)). apply Hvs in Hp.
+        destruct Hp as [Hp|Hp].
+        -- subst. apply reaches_self.
+        -- eapply reaches_weaken.
+           2: { apply all_reachable_all_nodes; eassumption. }
+           intros. apply graph.edge_put. auto.
+    - apply graph.edge_put in Huv. destruct Huv as [Huv|Huv].
+      + eapply reaches_weaken; [|eapply IHdfs_fold_state; eauto].
+        intros. apply graph.edge_put. auto.
+      + fwd.
+        pose proof dfs_fold_state_p_good as Hp. especialize Hp; [eassumption|].
+        pose proof dfs_fold_state_vs_good as Hvs. especialize Hvs; [eassumption|].
+        specialize (Hp u' ltac:(simpl; auto)). apply Hvs in Hp.
+        destruct Hp as [Hp|Hp].
+        -- subst. apply reaches_self.
+        -- eapply reaches_weaken.
+           2: { apply all_reachable_all_nodes; eassumption. }
+           intros. apply graph.edge_put. auto.
+    - eapply IHdfs_fold_state. eassumption.
+  Qed.
+
+  Lemma dfs_fold_state_invs root st0 vs st p g :
+    dfs_fold_state root [root] st0 vs st p g ->
+    same_set vs (root :: graph.all_nodes g) /\
+      incl p vs /\
+      In root vs /\
+      all_reachable (graph.edge g) root.
+  Proof.
+    eauto 8 using dfs_fold_state_p_good, dfs_fold_state_root_seen, dfs_fold_state_vs_good, dfs_fold_state_all_reachable.
   Qed.
   End fold.
 End __.
