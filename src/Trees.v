@@ -135,21 +135,6 @@ Section __.
       + apply in_flat_map. exists s. split; [exact Hs | exact Ha].
   Qed.
 
-  Lemma path_last_in_nodes s a p :
-    In a (nodes_of s) ->
-    path (graph.edge (graph_of s)) a p ->
-    In (last p a) (nodes_of s).
-  Proof.
-    revert a. induction p as [|b p' IH]; intros a Ha Hp.
-    - simpl. exact Ha.
-    - destruct Hp as [He Hp']. rewrite last_cons.
-      apply IH.
-      + exact (proj2 (edge_nodes s a b He)).
-      + exact Hp'.
-  Qed.
-
-  (* ---------- how a path relates to the children ---------- *)
-
   Lemma edge_child_mono v ts s x y :
     In s ts ->
     graph.edge (graph_of s) x y ->
@@ -182,57 +167,6 @@ Section __.
       { eapply disjoint_children; try eassumption.
         apply edge_nodes in He. fwd. assumption. }
       subst s'. exact He.
-  Qed.
-
-  Lemma path_in_child v ts s a p :
-    valid_tree (tree_cons v ts) ->
-    In s ts -> In a (nodes_of s) ->
-    path (graph.edge (graph_of (tree_cons v ts))) a p ->
-    path (graph.edge (graph_of s)) a p.
-  Proof.
-    intros Hvalid Hs. revert a. induction p as [|b p' IH]; intros a Ha Hp.
-    - exact I.
-    - destruct Hp as [He Hp']. split.
-      + eapply edge_in_child; eassumption.
-      + apply IH.
-        * exact (proj2 (edge_nodes s a b (edge_in_child v ts s a b Hvalid Hs Ha He))).
-        * exact Hp'.
-  Qed.
-
-  Lemma tree_path_cons t n p' :
-    valid_tree t ->
-    path (graph.edge (graph_of t)) (root t) (n :: p') ->
-    exists t', In t' (children t) /\ root t' = n /\ path (graph.edge (graph_of t')) n p'.
-  Proof.
-    destruct t as [v ts]. intros Hvalid Hpath. destruct Hpath as [He Hp].
-    apply valid_tree_graph_edge in He; [ | exact Hvalid ].
-    apply in_map_iff in He. destruct He as [s [Hrs Hs]].
-    exists s. split; [exact Hs | split].
-    - exact Hrs.
-    - eapply path_in_child.
-      + exact Hvalid.
-      + exact Hs.
-      + rewrite <- Hrs. apply nodes_of_root.
-      + exact Hp.
-  Qed.
-
-  (* ---------- graph_of a valid tree is a tree ---------- *)
-
-  Lemma graph_of_all_reachable t :
-    valid_tree t ->
-    all_reachable (graph.edge (graph_of t)) (root t).
-  Proof.
-    induction t as [v ts IH] using tree_ind. intros Hvalid. cbn [root].
-    rewrite Forall_forall in IH.
-    intros u b He. apply edge_graph_of in He.
-    destruct He as [[Hu _] | [s [Hs He]]].
-    - subst u. apply reaches_self.
-    - pose proof (IH s Hs (valid_tree_child v ts s Hvalid Hs)) as Har.
-      specialize (Har u b He).
-      eapply reaches_step_before.
-      + eapply reaches_weaken; [ | exact Har ].
-        intros x y Hxy. eapply edge_child_mono; eassumption.
-      + apply edge_graph_of. left. split; [reflexivity | apply in_map; exact Hs].
   Qed.
 
   Context {eqbV : Eqb V}.
@@ -268,60 +202,59 @@ Section __.
   (* Along the DFS: one frame per open node plus the outer frame, and the nodes
      collected so far (in the finished trees and on the path) are exactly the
      distinct visited set. *)
-  Lemma tree_of_invariant (r : V) s pth (gg : graph) :
+  Lemma tree_of_invariant (r : V) seen tss pth (gg : graph) :
     dfs_fold_state (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
       (fun tss _ finished =>
          match tss with
          | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
          | _ => []
          end)
-      r ([r], [] :: [[]]) s pth gg ->
-    length (snd s) = S (length pth) /\
-    NoDup (stack_nodes (snd s) ++ pth) /\
-    incl (stack_nodes (snd s) ++ pth) (fst s).
+      r [r] ([] :: [[]]) seen tss pth gg ->
+    length tss = S (length pth) /\
+    NoDup (stack_nodes tss ++ pth) /\
+    incl (stack_nodes tss ++ pth) seen.
   Proof.
-    intros HD. induction HD as [
-      | st u pp g0 v Hnew Hsub IH Hseen
-      | st u pp g0 v Hsub IH Hnew Hseen
-      | st u pp g0 Hsub IH ].
-    - cbn [fst snd]. ssplit.
+    intros HD. induction HD.
+    - ssplit.
       + reflexivity.
       + rewrite !stack_nodes_cons. cbn [flat_map app].
         apply NoDup_cons; [ intro Hc; destruct Hc | apply NoDup_nil ].
       + rewrite !stack_nodes_cons. cbn [flat_map app]. apply incl_refl.
-    - destruct st as [svs tss]. cbn [fst snd tree_edge_upd'] in IH |- *.
-      cbn [already_seen] in Hseen. apply set_contains_false in Hseen. fwd.
-      assert (Hvni : ~ In v (stack_nodes tss ++ (u :: pp))).
-      { intro Hv. apply Hseen. apply IHp2. exact Hv. }
+    - cbv beta. destruct IHHD as (Hlen & Hnodup & Hincl).
+      match goal with H : set_contains _ _ = false |- _ =>
+        apply set_contains_false in H; rename H into Hseen end.
+      assert (Hvni : ~ In v (stack_nodes st ++ (u :: p))).
+      { intro Hv. apply Hseen. apply Hincl. exact Hv. }
       ssplit.
-      + cbn [length] in IHp0 |- *. lia.
+      + cbn [length] in Hlen |- *. lia.
       + rewrite stack_nodes_cons. cbn [flat_map app].
-        apply (Permutation_NoDup (l := v :: stack_nodes tss ++ (u :: pp))).
+        apply (Permutation_NoDup (l := v :: stack_nodes st ++ (u :: p))).
         * apply Permutation_middle.
-        * apply NoDup_cons; [ exact Hvni | exact IHp1 ].
+        * apply NoDup_cons; [ exact Hvni | exact Hnodup ].
       + rewrite stack_nodes_cons. cbn [flat_map app].
         intros x Hx. apply in_app_or in Hx. destruct Hx as [Hx | Hx].
-        * right. apply IHp2. apply in_or_app. left. exact Hx.
+        * right. apply Hincl. apply in_or_app. left. exact Hx.
         * cbn [In] in Hx. destruct Hx as [Hv | Hx].
           -- left. exact Hv.
-          -- right. apply IHp2. apply in_or_app. right. exact Hx.
-    - destruct st as [svs tss]. cbn [fst snd untree_edge_upd'] in IH |- *. exact IH.
-    - destruct st as [svs tss]. cbn [fst snd finish'] in IH |- *. fwd.
-      destruct tss as [| ts [| ts' tss']].
-      + cbn [length] in IHp0. lia.
-      + cbn [length] in IHp0. lia.
-      + assert (Hu_in : In u (stack_nodes (ts :: ts' :: tss') ++ (u :: pp))).
+          -- right. apply Hincl. apply in_or_app. right. exact Hx.
+    - cbv beta. exact IHHD.
+    - destruct IHHD as (Hlen & Hnodup & Hincl).
+      destruct st as [| ts [| ts' tss']].
+      + cbn [length] in Hlen. lia.
+      + cbn [length] in Hlen. lia.
+      + cbv beta iota.
+        assert (Hu_in : In u (stack_nodes (ts :: ts' :: tss') ++ (u :: p))).
         { apply in_or_app. right. left. reflexivity. }
         ssplit.
-        * cbn [length] in IHp0 |- *. lia.
+        * cbn [length] in Hlen |- *. lia.
         * rewrite stack_nodes_finish. cbn [app].
-          apply (Permutation_NoDup (l := stack_nodes (ts :: ts' :: tss') ++ (u :: pp))).
+          apply (Permutation_NoDup (l := stack_nodes (ts :: ts' :: tss') ++ (u :: p))).
           -- apply Permutation_sym. apply Permutation_middle.
-          -- exact IHp1.
+          -- exact Hnodup.
         * rewrite stack_nodes_finish. cbn [app].
           intros x Hx. destruct Hx as [Hu | Hx].
-          -- subst x. apply IHp2. exact Hu_in.
-          -- apply IHp2. apply in_app_or in Hx. apply in_or_app.
+          -- subst x. apply Hincl. exact Hu_in.
+          -- apply Hincl. apply in_app_or in Hx. apply in_or_app.
              destruct Hx as [Hx | Hx]; [ left; exact Hx | right; right; exact Hx ].
   Qed.
 
@@ -336,7 +269,7 @@ Section __.
                    | _ => []
                    end) g [[]] u) as [vs tss] eqn:E.
     apply dfs_fold_spec in E. fwd.
-    simpl in Ep1. apply tree_of_invariant in Ep1. cbn [fst snd] in Ep1. fwd.
+    simpl in Ep1. apply tree_of_invariant in Ep1. fwd.
     rewrite app_nil_r in Ep1p1.
     destruct tss as [| fr [| fr' tss']].
     - cbn [length] in Ep1p0. lia.

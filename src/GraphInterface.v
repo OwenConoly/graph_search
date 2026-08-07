@@ -134,6 +134,9 @@ Section ops.
   Definition edge (g : graph) u v :=
     In v (edges g u).
 
+  Definition subgraph (g1 g2 : graph) :=
+    forall u v, edge g1 u v -> edge g2 u v.
+
   Lemma edge_union g1 g2 x y :
     edge (union g1 g2) x y <-> edge g1 x y \/ edge g2 x y.
   Proof. cbv [edge]. apply edges_union. Qed.
@@ -172,7 +175,10 @@ Section ops.
     reachable_subgraph g root g1 ->
     reachable_subgraph g root g2 ->
     g1 = g2.
-  Admitted.
+  Proof.
+    intros H1 H2. apply graph_ext. intros u a.
+    specialize (H1 u a). specialize (H2 u a). cbv [edge] in *. tauto.
+  Qed.
 
   Context {eqbV : Eqb vertex} {eqbV_ok : Eqb_ok eqbV}.
 
