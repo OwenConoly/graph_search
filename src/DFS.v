@@ -533,15 +533,37 @@ Section __.
     - fwd. apply H1p1. eauto.
   Qed.
 
+  Hint Unfold In : incl.
+  Hint Immediate incl_refl : incl.
+  Hint Resolve incl_cons incl_tl : incl.
+
+  (*TODO this could be much stronger.   i'll strengthen it when needed*)
+  Lemma dfs_fold_state_p_good root st0 vs st p g :
+    dfs_fold_state root [root] st0 vs st p g ->
+    incl p vs.
+  Proof.
+    induction 1; auto with incl.
+    apply incl_cons_inv in IHdfs_fold_state. fwd. auto.
+  Qed.
+
   Lemma dfs_fold_state_vs_good root st0 vs st p g :
     dfs_fold_state root [root] st0 vs st p g ->
     same_set vs (root :: graph.all_nodes g).
-  Proof. Admitted.
-
-    (*TODO this could be much stronger.   i'll strengthen it when needed*)
-  Lemma dfs_fold_state_p_good root vs0 st0 vs st p g :
-    dfs_fold_state root vs0 st0 vs st p g ->
-    incl p vs.
-  Proof. Admitted.
+  Proof.
+    induction 1.
+    - rewrite graph.all_nodes_empty. apply same_set_refl.
+    - cbv [same_set] in *. simpl. intros. rewrite graph.all_nodes_put.
+      rewrite IHdfs_fold_state. simpl.
+      split; intros H'; repeat destruct H' as [H'|H']; subst; auto.
+      apply dfs_fold_state_p_good in H0. apply incl_cons_inv in H0. fwd.
+      apply IHdfs_fold_state in H0p0. simpl in H0p0. destruct H0p0; auto.
+    - cbv [same_set] in *. simpl. intros. rewrite graph.all_nodes_put.
+      rewrite IHdfs_fold_state. simpl.
+      split; intros H'; repeat destruct H' as [H'|H']; subst; auto.
+      + apply IHdfs_fold_state. eapply dfs_fold_state_p_good; [eassumption|].
+        simpl. auto.
+      + apply set_contains_true in H1. apply IHdfs_fold_state. auto.
+    - assumption.
+  Qed.
   End fold.
 End __.
