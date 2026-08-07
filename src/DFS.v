@@ -575,7 +575,13 @@ Section __.
     all_reachable (graph.edge g) root ->
     In u (graph.all_nodes g) ->
     reaches (graph.edge g) root u.
-  Proof. Admitted.
+  Proof.
+    intros Hall Hin. apply graph.all_nodes_spec in Hin. destruct Hin as [w [He | He]].
+    - eapply Hall. exact He.
+    - eapply reaches_step.
+      + eapply Hall. exact He.
+      + exact He.
+  Qed.
 
   Lemma dfs_fold_state_all_reachable root st0 vs st p g :
     dfs_fold_state root [root] st0 vs st p g ->

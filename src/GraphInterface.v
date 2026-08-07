@@ -200,6 +200,34 @@ Section ops.
       + subst u'. exists v; left; right; split; reflexivity.
       + subst u'. exists u; right; right; split; reflexivity.
   Qed.
+
+  Lemma all_nodes_NoDup g :
+    NoDup (all_nodes g).
+  Proof. unfold all_nodes. apply NoDup_dedup. Qed.
+
+  Lemma In_all_edges g a b :
+    In (a, b) (all_edges g) <-> edge g a b.
+  Proof.
+    unfold all_edges, edge. rewrite in_flat_map. split.
+    - intros [u [Hu Hin]]. apply in_map_iff in Hin. destruct Hin as [w [Heq Hw]].
+      injection Heq as <- <-. exact Hw.
+    - intro Hb. exists a. split.
+      + apply sources_spec. eapply in_not_nil. exact Hb.
+      + apply in_map_iff. exists b. split; [ reflexivity | exact Hb ].
+  Qed.
+
+  Lemma all_edges_NoDup g :
+    NoDup (all_edges g).
+  Proof.
+    unfold all_edges. apply NoDup_flat_map.
+    - apply sources_NoDup.
+    - intros u Hu. apply NoDup_map_NoDup_ForallPairs; [ | apply edges_NoDup ].
+      intros x y _ _ Heq. congruence.
+    - intros u1 u2 [a b] Hu1 Hu2 Hin1 Hin2.
+      apply in_map_iff in Hin1. destruct Hin1 as [w1 [Heq1 _]].
+      apply in_map_iff in Hin2. destruct Hin2 as [w2 [Heq2 _]].
+      congruence.
+  Qed.
 End ops.
 End graph.
 Global Coercion graph.rep : graph.graph >-> Sortclass.

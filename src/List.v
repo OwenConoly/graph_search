@@ -1,5 +1,5 @@
-From Stdlib Require Import List Lia.
-From coqutil Require Import Datatypes.List Datatypes.ListSet Eqb.
+From Stdlib Require Import List Lia Permutation.
+From coqutil Require Import Datatypes.List Datatypes.ListSet Eqb Tactics.Tactics.
 Import ListNotations.
 
 Definition same_set {A} (l1 l2 : list A) := forall a, In a l1 <-> In a l2.
@@ -72,6 +72,39 @@ Lemma In_last A (l : list A) d :
 Proof.
   intros H. rewrite (app_removelast_last d H) at 2.
   apply in_or_app. right. left. reflexivity.
+Qed.
+
+Lemma NoDup_same_length {A} (l1 l2 : list A) :
+  NoDup l1 ->
+  NoDup l2 ->
+  (forall x, In x l1 <-> In x l2) ->
+  length l1 = length l2.
+Proof. intros HA HB Hiff. apply Permutation_length, NoDup_Permutation; assumption. Qed.
+
+Lemma NoDup_flat_map {A B} (f : A -> list B) l :
+  NoDup l ->
+  (forall a, In a l -> NoDup (f a)) ->
+  (forall a1 a2 b, In a1 l -> In a2 l -> In b (f a1) -> In b (f a2) -> a1 = a2) ->
+  NoDup (flat_map f l).
+Proof.
+  intros Hnd Hnf Hdisj. induction l as [|a l IH]; cbn [flat_map].
+  - constructor.
+  - apply NoDup_cons_iff in Hnd. destruct Hnd as [Ha Hnd].
+    apply NoDup_app_iff. ssplit.
+    + apply Hnf. left. reflexivity.
+    + apply IH.
+      * exact Hnd.
+      * intros a0 Ha0. apply Hnf. right. exact Ha0.
+      * intros a1 a2 b Hi1 Hi2 Hb1 Hb2.
+        apply (Hdisj a1 a2 b); [ right; exact Hi1 | right; exact Hi2 | exact Hb1 | exact Hb2 ].
+    + intros b Hb Hbf. apply in_flat_map in Hbf. destruct Hbf as [a2 [Ha2 Hb2]].
+      assert (a = a2) as -> by
+          (apply (Hdisj a a2 b); [ left; reflexivity | right; exact Ha2 | exact Hb | exact Hb2 ]).
+      contradiction.
+    + intros b Hbf Hb. apply in_flat_map in Hbf. destruct Hbf as [a2 [Ha2 Hb2]].
+      assert (a = a2) as -> by
+          (apply (Hdisj a a2 b); [ left; reflexivity | right; exact Ha2 | exact Hb | exact Hb2 ]).
+      contradiction.
 Qed.
 
 Section set_contains.

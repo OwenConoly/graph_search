@@ -32,29 +32,65 @@ Section __.
 
   Lemma num_edges_empty :
     num_edges (graph.empty : graph) = O.
-  Proof. Admitted.
+  Proof. unfold num_edges, graph.all_edges. rewrite graph.sources_empty. reflexivity. Qed.
 
   Lemma num_nodes_empty root :
     num_nodes graph.empty root = S O.
-  Proof. Admitted.
+  Proof. unfold num_nodes. rewrite graph.all_nodes_empty. reflexivity. Qed.
 
   Lemma num_edges_put g u v :
     ~graph.edge g u v ->
     num_edges (graph.put g u v) = S (num_edges g).
-  Proof. Admitted.
+  Proof.
+    intro Hne. unfold num_edges.
+    transitivity (length ((u, v) :: graph.all_edges g)).
+    - apply NoDup_same_length.
+      + apply graph.all_edges_NoDup.
+      + apply NoDup_cons.
+        * rewrite graph.In_all_edges. exact Hne.
+        * apply graph.all_edges_NoDup.
+      + intros [a b]. rewrite graph.In_all_edges, graph.edge_put. cbn [In].
+        rewrite graph.In_all_edges, pair_equal_spec. tauto.
+    - reflexivity.
+  Qed.
 
   Lemma num_nodes_put01 g root u v :
     In u (root :: graph.all_nodes g) ->
     ~In v (graph.all_nodes g) ->
     v <> root ->
     num_nodes (graph.put g u v) root = S (num_nodes g root).
-  Proof. Admitted.
+  Proof.
+    intros Hu Hv Hvr. cbn [In] in Hu. unfold num_nodes.
+    transitivity (length (v :: list_union eqb [root] (graph.all_nodes g))).
+    - apply NoDup_same_length.
+      + apply list_union_preserves_NoDup. apply graph.all_nodes_NoDup.
+      + apply NoDup_cons.
+        * rewrite In_list_union_spec. cbn [In].
+          intros [[Hr | []] | Hin]; [ congruence | exact (Hv Hin) ].
+        * apply list_union_preserves_NoDup. apply graph.all_nodes_NoDup.
+      + intro x. rewrite In_list_union_spec, graph.all_nodes_put. cbn [In].
+        rewrite In_list_union_spec. cbn [In].
+        split.
+        * intros [Hr | [Hg | [Hxu | Hxv]]]; try (subst x); tauto.
+        * intros [Hxv | [Hr | Hg]]; try (subst x); tauto.
+    - reflexivity.
+  Qed.
 
   Lemma num_nodes_put00 g root u v :
     In u (root :: graph.all_nodes g) ->
     In v (root :: graph.all_nodes g) ->
     num_nodes (graph.put g u v) root = num_nodes g root.
-  Proof. Admitted.
+  Proof.
+    intros Hu Hv. unfold num_nodes. apply NoDup_same_length.
+    - apply list_union_preserves_NoDup. apply graph.all_nodes_NoDup.
+    - apply list_union_preserves_NoDup. apply graph.all_nodes_NoDup.
+    - intro x. rewrite !In_list_union_spec, graph.all_nodes_put. cbn [In] in *.
+      split.
+      + intros [Hr | [Hg | [Hxu | Hxv]]]; try tauto.
+        * subst x. tauto.
+        * subst x. tauto.
+      + tauto.
+  Qed.
 
   Lemma dfs_check_invariant (root : V) vs is_tree p (g : graph) :
     dfs_fold_state (fun _ _ _ => false) (fun tree _ _ => tree) (fun tree _ _ => tree)
