@@ -195,7 +195,7 @@ Section __.
     Proof.
       cbv [graph_corresp]. intros. fwd. split.
       - intros. especialize Hp0.
-        { apply graph.sources_spec. eapply in_not_nil. eassumption. }
+        { apply graph.sources_spec. eauto. }
         fwd. auto.
       - intros. fwd. auto.
     Qed.
@@ -293,9 +293,7 @@ Section __.
         cbv [weak_graph_corresp]. split.
         { rewrite graph.sources_empty. simpl. contradiction. }
         split; cycle 1.
-        { cbv [graph.edge]. rewrite graph.edges_empty. simpl. split.
-          - intros. split; auto.
-          - intros * H.  rewrite graph.edges_empty in H. destruct H. }
+        { setoid_rewrite graph.edge_empty_iff. graph. }
         intros. exfalso. destruct H1; subst; auto.
       - intros * Hnotin Hin H * Hdfs. destruct a'.
         specialize (H _ _ eq_refl). fwd. apply in_rev in Hin.
@@ -315,8 +313,7 @@ Section __.
               -- apply set_contains_head.
             + intros. rewrite graph.edge_put. left.
               apply Hp1p1; auto.
-            + intros. cbv [graph.edge]. rewrite graph.edges_put.
-              cbv [graph.edge] in Hp1p2. rewrite Hp1p2.
+            + intros. rewrite graph.edge_put, Hp1p2.
               simpl. split; intros [?|?]; fwd; auto.
             + intros * H. apply graph.edge_put in H.
               destruct H as [H|H]; fwd; auto. }
@@ -329,11 +326,10 @@ Section __.
                     eauto.
                 --- simpl. assumption.
              ++ simpl. rewrite eqb_refl_true by assumption. reflexivity.
-             ++ apply forall_not_in_nil. intros. rewrite graph.edges_put.
-                intros [H|H].
+             ++ apply forall_not_in_nil. intros v Hv. apply graph.edge_put in Hv.
+                destruct Hv as [H|H].
                 --- cbv [weak_graph_corresp] in Hp1. fwd.
-                    apply in_not_nil in H.
-                    apply graph.sources_spec in H. apply Hp1p0 in H.
+                    apply graph.edge_in_sources, Hp1p0 in H.
                     apply set_contains_false in Eb. fwd. auto.
                 --- fwd. eapply seen_mono in Hp0; cycle 1.
                     { apply set_contains_head. }
@@ -350,25 +346,23 @@ Section __.
                     +++ apply set_contains_false in Hroot. exact Hroot.
                 --- cbv [graph_corresp] in Hdfsp1. fwd. apply Hdfsp1p0 in Hv. fwd.
                     split; auto. intro. apply Hvp1. apply Hp0. simpl. auto.
-             ++ intros. cbv [graph.edge]. rewrite graph.edges_union, graph.edges_put.
+             ++ intros. rewrite graph.edge_union, graph.edge_put.
                 destruct (set_contains l u) eqn:Hu;
                   [apply set_contains_true in Hu | apply set_contains_false in Hu].
                 --- left. left. apply Hp1p1; auto.
                 --- right. apply Hdfsp1; auto.
-             ++ intros. cbv [graph.edge]. rewrite graph.edges_union, graph.edges_put.
+             ++ intros. rewrite graph.edge_union, graph.edge_put.
                 split.
                 --- intros [[Hv|Hv]|Hv].
                     +++ simpl. right. apply Hp1p2. assumption.
                     +++ fwd. simpl. auto.
                     +++ cbv [graph_corresp] in Hdfsp1. fwd.
-                        apply in_not_nil in Hv. apply graph.sources_spec in Hv.
-                        apply Hdfsp1p0 in Hv. fwd. exfalso. apply Hvp1. apply Hp0.
-                        simpl. auto.
+                        apply graph.edge_in_sources, Hdfsp1p0 in Hv. fwd.
+                        exfalso. apply Hvp1. apply Hp0. simpl. auto.
                 --- intros [Hv|Hv].
                     +++ subst. auto.
                     +++ left. left. apply Hp1p2. assumption.
-             ++ intros. cbv [graph.edge] in H.
-                rewrite graph.edges_union, graph.edges_put in H.
+             ++ intros. rewrite graph.edge_union, graph.edge_put in H.
                 destruct H as [[H|H]|H]; fwd; auto.
                 cbv [graph_corresp] in Hdfsp1. fwd. auto.
         + eapply no_long_paths_incl.

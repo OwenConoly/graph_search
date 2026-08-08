@@ -252,9 +252,10 @@ Section GraphImpl.
   Global Instance graph_map_ok : graph.ok graph_map.
   Proof.
     split;
+      cbv [graph.edge];
       cbn [graph.rep graph.edges graph.empty graph.put graph.remove graph.sources graph_map].
     - intros g1 g2 Hsame. apply eq_grep. apply map.map_ext. intro k.
-      specialize (Hsame k). unfold same_set in Hsame.
+      specialize (Hsame k).
       destruct (map.get (raw g1) k) as [s1|] eqn:E1;
         destruct (map.get (raw g2) k) as [s2|] eqn:E2.
       + f_equal. apply map.map_ext. intro x.
@@ -288,7 +289,7 @@ Section GraphImpl.
         destruct (map.keys s2) as [|x0 xs] eqn:K; [congruence|].
         exact (proj2 (Hsame x0) (or_introl eq_refl)).
       + reflexivity.
-    - intro v. unfold edges, empty. cbn [raw]. rewrite map.get_empty. reflexivity.
+    - intros u v. unfold edges, empty. cbn [raw]. rewrite map.get_empty. apply in_nil.
     - intros g u u' v v'. rewrite !in_edges_iff.
       change (raw (put g u v)) with (put_raw (raw g) u v).
       rewrite mem_put_raw. reflexivity.
@@ -298,11 +299,12 @@ Section GraphImpl.
     - intros g u. unfold sources, edges.
       destruct (map.get (raw g) u) as [s|] eqn:E.
       + split.
-        * intros _. apply nonemptyb_true_iff. exact (wfb_spec (raw g) u s (raw_wf g) E).
+        * intros _. apply neq_nil_iff_exists_in. apply nonemptyb_true_iff.
+          exact (wfb_spec (raw g) u s (raw_wf g) E).
         * intros _. eapply map.in_keys. exact E.
       + split.
         * intro Hin. apply map.in_keys_inv in Hin. rewrite E in Hin. congruence.
-        * intro H. congruence.
+        * intros [v Hv]. destruct Hv.
     - intro g. unfold sources. apply map.keys_NoDup.
     - intros g u. unfold edges. destruct (map.get (raw g) u) as [s|] eqn:E.
       + apply map.keys_NoDup.

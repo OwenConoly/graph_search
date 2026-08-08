@@ -71,8 +71,7 @@ Section __.
     cbn [graph_of]. rewrite graph.edge_union.
     assert (H1 : graph.edge (graph.put_edges graph.empty v (map root ts)) a b <->
                  a = v /\ In b (map root ts)).
-    { cbv [graph.edge]. rewrite graph.edges_put_edges, graph.edges_empty.
-      graph. }
+    { rewrite graph.edge_put_edges, graph.edge_empty_iff. graph. }
     assert (H2 : graph.edge (fold_left graph.union (map graph_of ts) graph.empty) a b <->
                  exists s, In s ts /\ graph.edge (graph_of s) a b).
     { rewrite graph.edge_fold_union. split.
