@@ -8,7 +8,7 @@ Ltac graph :=
   repeat match goal with
     | |- ~ _ => intro
     | _ => progress (intros; fwd; cbn [In] in *; subst)
-    | _ => contradiction || solve[eauto]
+    | _ => contradiction || congruence || solve[eauto]
     | H: _ \/ _ |- _ => destruct H
     | |- _ <-> _ => split
     | |- _ /\ _ => split

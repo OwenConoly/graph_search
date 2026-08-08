@@ -282,4 +282,98 @@ Section __.
     - cbn [length] in Ep1p0. lia.
   Qed.
 
+  Definition graph_of_forest (ts : list tree) : graph :=
+    fold_left graph.union (map graph_of ts) graph.empty.
+
+  Lemma edge_graph_of_forest ts a b :
+    graph.edge (graph_of_forest ts) a b <-> exists t, In t ts /\ graph.edge (graph_of t) a b.
+  Proof.
+    unfold graph_of_forest. rewrite graph.edge_fold_union. split.
+    - intros [He | [gg [Hgg He]]].
+      + destruct (graph.edge_empty _ _ He).
+      + apply in_map_iff in Hgg. fwd. eauto.
+    - intros. fwd. setoid_rewrite in_map_iff. eauto 6.
+  Qed.
+
+  Lemma graph_of_leaf v :
+    graph_of (tree_cons v []) = graph.empty.
+  Proof.
+    apply graph.graph_ext. intros a b. rewrite graph.edge_empty_iff, edge_graph_of.
+    cbn [map In]. graph.
+  Qed.
+
+  Lemma edge_graph_of_cons w c cs a b :
+    graph.edge (graph_of (tree_cons w (c :: cs))) a b <->
+      graph.edge (graph_of (tree_cons w cs)) a b \/ graph.edge (graph_of c) a b \/ (a = w /\ b = root c).
+  Proof.
+    rewrite !edge_graph_of. cbn [map In]. graph.
+  Qed.
+
+  Lemma edge_graph_of_forest_cons c cs a b :
+    graph.edge (graph_of_forest (c :: cs)) a b <->
+      graph.edge (graph_of c) a b \/ graph.edge (graph_of_forest cs) a b.
+  Proof. rewrite !edge_graph_of_forest. cbn [In]. graph. Qed.
+
+  (* Edges of the forest obtained by finishing the whole remaining DFS path. *)
+  Fixpoint pedge (pth : list V) (tss : list (list tree)) (a b : V) : Prop :=
+    match pth, tss with
+    | n :: pth', f :: tss' =>
+        graph.edge (graph_of (tree_cons n f)) a b
+        \/ (match pth' with n' :: _ => a = n' /\ b = n | [] => False end)
+        \/ pedge pth' tss' a b
+    | [], f :: _ => graph.edge (graph_of_forest f) a b
+    | _, _ => False
+    end.
+
+  Lemma pedge_sound root vs tss pth g' :
+    dfs_fold_state (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
+      (fun tss _ finished =>
+         match tss with
+         | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
+         | _ => []
+         end)
+      root [root] ([] :: [[]]) vs tss pth g' ->
+    forall a b, pedge pth tss a b -> graph.edge g' a b.
+  Proof.
+    intros HD. induction HD; intros a b Hp.
+    - cbn [pedge graph_of_forest map fold_left] in Hp.
+      rewrite graph_of_leaf, !graph.edge_empty_iff in Hp. tauto.
+    - cbv beta in Hp. cbn [pedge] in Hp.
+      rewrite graph_of_leaf, graph.edge_empty_iff in Hp. rewrite graph.edge_put.
+      destruct Hp as [[] | [Hp | Hp]].
+      + fwd. right. split; reflexivity.
+      + left. apply IHHD. exact Hp.
+    - cbv beta in Hp. rewrite graph.edge_put. left. apply IHHD. exact Hp.
+    - repeat Tactics.destruct_one_match_hyp; simpl in *;
+        try solve [destruct p; contradiction].
+      apply IHHD. destruct p; cbn [pedge] in *.
+      + rewrite edge_graph_of_forest_cons in Hp. tauto.
+      + rewrite edge_graph_of_cons in Hp. tauto.
+  Qed.
+
+  Lemma edge_leaf_False r a b :
+    graph.edge (graph_of (tree_cons r [])) a b -> False.
+  Proof.
+    intro He. apply edge_graph_of in He. cbn [map] in He.
+    destruct He as [[_ []] | [s [[] _]]].
+  Qed.
+
+  Lemma graph_of_tree_of_subgraph g u :
+    graph.subgraph (graph_of (tree_of g u)) g.
+  Proof.
+    cbv [tree_of].
+    destruct (dfs_fold (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
+                (fun tss _ finished =>
+                   match tss with
+                   | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
+                   | _ => []
+                   end) g [[]] u) as [vs tss] eqn:E.
+    apply dfs_fold_spec in E. fwd. simpl in Ep1.
+    intros a b He. apply Ep0.
+    eapply pedge_sound; [ exact Ep1 | ].
+    repeat Tactics.destruct_one_match_hyp;
+        try solve [exfalso; eauto using edge_leaf_False].
+    simpl. apply edge_graph_of_forest_cons. auto.
+  Qed.
+
 End __.
