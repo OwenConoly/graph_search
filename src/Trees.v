@@ -171,14 +171,17 @@ Section __.
   Context {eqbV : Eqb V}.
   Context {eqbV_ok : Eqb_ok eqbV}.
 
+  Definition on_untree_edge (ts : list (list tree)) (_ : list V) (_ : V) := ts.
+  Definition on_tree_edge (ts : list (list tree)) (_ : list V) (_ : V) := [] :: ts.
+  Definition on_finish (tss : list (list tree)) (_ : list V) (finished : V) :=
+    match tss with
+    | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
+    | _ => []
+    end.
+
   Definition tree_of (g : graph) root :=
     let '(_, tree_stack) :=
-      dfs_fold (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
-        (fun tss _ finished =>
-           match tss with
-           | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
-           | _ => []
-           end) g [[]] root in
+      dfs_fold on_untree_edge on_tree_edge on_finish g [[]] root in
     match tree_stack with
     | [[t]] => t
     | _ => tree_cons root []
@@ -202,12 +205,7 @@ Section __.
      collected so far (in the finished trees and on the path) are exactly the
      distinct visited set. *)
   Lemma tree_of_invariant (r : V) seen tss pth (gg : graph) :
-    dfs_fold_state (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
-      (fun tss _ finished =>
-         match tss with
-         | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
-         | _ => []
-         end)
+    dfs_fold_state on_untree_edge on_tree_edge on_finish
       r [r] ([] :: [[]]) seen tss pth gg ->
     length tss = S (length pth) /\
     NoDup (stack_nodes tss ++ pth) /\
@@ -219,7 +217,7 @@ Section __.
       + rewrite !stack_nodes_cons. cbn [flat_map app].
         apply NoDup_cons; [ intro Hc; destruct Hc | apply NoDup_nil ].
       + rewrite !stack_nodes_cons. cbn [flat_map app]. apply incl_refl.
-    - cbv beta. destruct IHHD as (Hlen & Hnodup & Hincl).
+    - cbv [on_tree_edge]. destruct IHHD as (Hlen & Hnodup & Hincl).
       match goal with H : set_contains _ _ = false |- _ =>
         apply set_contains_false in H; rename H into Hseen end.
       assert (Hvni : ~ In v (stack_nodes st ++ (u :: p))).
@@ -236,12 +234,12 @@ Section __.
         * cbn [In] in Hx. destruct Hx as [Hv | Hx].
           -- left. exact Hv.
           -- right. apply Hincl. apply in_or_app. right. exact Hx.
-    - cbv beta. exact IHHD.
+    - cbv [on_untree_edge]. exact IHHD.
     - destruct IHHD as (Hlen & Hnodup & Hincl).
       destruct st as [| ts [| ts' tss']].
       + cbn [length] in Hlen. lia.
       + cbn [length] in Hlen. lia.
-      + cbv beta iota.
+      + cbv [on_finish].
         assert (Hu_in : In u (stack_nodes (ts :: ts' :: tss') ++ (u :: p))).
         { apply in_or_app. right. left. reflexivity. }
         ssplit.
@@ -251,22 +249,14 @@ Section __.
           -- apply Permutation_sym. apply Permutation_middle.
           -- exact Hnodup.
         * rewrite stack_nodes_finish. cbn [app].
-          intros x Hx. destruct Hx as [Hu | Hx].
-          -- subst x. apply Hincl. exact Hu_in.
-          -- apply Hincl. apply in_app_or in Hx. apply in_or_app.
-             destruct Hx as [Hx | Hx]; [ left; exact Hx | right; right; exact Hx ].
+          intros x Hx. graph. apply Hincl. rewrite in_app_iff in *. graph.
   Qed.
 
   Lemma tree_of_valid_tree (g : graph) u :
     valid_tree (tree_of g u).
   Proof.
     cbv [tree_of].
-    destruct (dfs_fold (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
-                (fun tss _ finished =>
-                   match tss with
-                   | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
-                   | _ => []
-                   end) g [[]] u) as [vs tss] eqn:E.
+    destruct (dfs_fold on_untree_edge on_tree_edge on_finish g [[]] u) as [vs tss] eqn:E.
     apply dfs_fold_spec in E. fwd.
     simpl in Ep1. apply tree_of_invariant in Ep1. fwd.
     rewrite app_nil_r in Ep1p1.
@@ -326,25 +316,20 @@ Section __.
     end.
 
   Lemma pedge_sound root vs tss pth g' :
-    dfs_fold_state (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
-      (fun tss _ finished =>
-         match tss with
-         | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
-         | _ => []
-         end)
+    dfs_fold_state on_untree_edge on_tree_edge on_finish
       root [root] ([] :: [[]]) vs tss pth g' ->
     forall a b, pedge pth tss a b -> graph.edge g' a b.
   Proof.
     intros HD. induction HD; intros a b Hp.
     - cbn [pedge graph_of_forest map fold_left] in Hp.
       rewrite graph_of_leaf, !graph.edge_empty_iff in Hp. tauto.
-    - cbv beta in Hp. cbn [pedge] in Hp.
+    - cbv [on_tree_edge] in Hp. cbn [pedge] in Hp.
       rewrite graph_of_leaf, graph.edge_empty_iff in Hp. rewrite graph.edge_put.
       destruct Hp as [[] | [Hp | Hp]].
       + fwd. right. split; reflexivity.
       + left. apply IHHD. exact Hp.
-    - cbv beta in Hp. rewrite graph.edge_put. left. apply IHHD. exact Hp.
-    - repeat Tactics.destruct_one_match_hyp; simpl in *;
+    - cbv [on_untree_edge] in Hp. rewrite graph.edge_put. left. apply IHHD. exact Hp.
+    - cbv [on_finish] in Hp. repeat Tactics.destruct_one_match_hyp; simpl in *;
         try solve [destruct p; contradiction].
       apply IHHD. destruct p; cbn [pedge] in *.
       + rewrite edge_graph_of_forest_cons in Hp. tauto.
@@ -354,20 +339,13 @@ Section __.
   Lemma edge_leaf_False r a b :
     graph.edge (graph_of (tree_cons r [])) a b -> False.
   Proof.
-    intro He. apply edge_graph_of in He. cbn [map] in He.
-    destruct He as [[_ []] | [s [[] _]]].
+    intro He. apply edge_graph_of in He. graph.
   Qed.
 
   Lemma graph_of_tree_of_subgraph g u :
     graph.subgraph (graph_of (tree_of g u)) g.
   Proof.
-    cbv [tree_of].
-    destruct (dfs_fold (fun ts _ _ => ts) (fun ts _ _ => [] :: ts)
-                (fun tss _ finished =>
-                   match tss with
-                   | ts :: ts' :: tss' => (tree_cons finished ts :: ts') :: tss'
-                   | _ => []
-                   end) g [[]] u) as [vs tss] eqn:E.
+    cbv [tree_of]. Tactics.destruct_one_match.
     apply dfs_fold_spec in E. fwd. simpl in Ep1.
     intros a b He. apply Ep0.
     eapply pedge_sound; [ exact Ep1 | ].
