@@ -1,4 +1,4 @@
-From GraphSearch Require Import DFS GraphInterface EdgeRel List.
+From GraphSearch Require Import DFS GraphInterface List.
 From coqutil Require Import Eqb Tactics.fwd Tactics Datatypes.List Datatypes.ListSet.
 From Stdlib Require Import List Lia.
 Import ListNotations.

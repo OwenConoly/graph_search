@@ -1,6 +1,6 @@
 From Stdlib Require Import List.
 From coqutil Require Import Tactics.fwd Datatypes.List Datatypes.ListSet Eqb.
-From GraphSearch Require Import List EdgeRel.
+From GraphSearch Require Import List.
 Import ListNotations.
 
 (*some dumb tactic that isn't even particularly related to graphs.*)
@@ -158,8 +158,102 @@ Section ops.
     edge (put g u v) x y <-> edge g x y \/ u = x /\ v = y.
   Proof. cbv [edge]. apply edges_put. Qed.
 
+  Lemma subgraph_put g u v :
+    subgraph g (put g u v).
+  Proof. intros x y H. apply edge_put. left. exact H. Qed.
+
+  Fixpoint path (g : graph) (first : vertex) (p : list vertex) :=
+    match p with
+    | [] => True
+    | next :: p' => edge g first next /\ path g next p'
+    end.
+
+  Definition path_to g first p last :=
+    path g first p /\ last = List.last p first.
+
+  Definition reaches g first last :=
+    exists p, path_to g first p last.
+
+  Definition all_reachable g root :=
+    forall u v, edge g u v -> reaches g root u.
+
+  Lemma reaches_self g u :
+    reaches g u u.
+  Proof. cbv [reaches]. exists nil. cbv [path_to]. simpl. auto. Qed.
+
+  Lemma reaches_step_before g u v w :
+    reaches g v w ->
+    edge g u v ->
+    reaches g u w.
+  Proof.
+    cbv [reaches path_to]. intros. fwd. eexists (_ :: _). simpl. split; eauto.
+    destruct p; try reflexivity. apply last_cons_last_cons.
+  Qed.
+
+  Lemma edge_closed_reaches_in g u0 v0 vs :
+    (forall u v, In u vs -> edge g u v -> In v vs) ->
+    In u0 vs ->
+    reaches g u0 v0 ->
+    In v0 vs.
+  Proof.
+    intros H Hu0 Hreach. cbv [reaches path_to] in Hreach. fwd.
+    revert u0 Hu0 Hreachp0. induction p; cbn [path]; intros u0 Hu0 Hreach; auto.
+    fwd. destruct p; eauto. rewrite last_cons. apply IHp; eauto.
+  Qed.
+
+  Lemma path_subgraph g1 g2 first p :
+    subgraph g1 g2 ->
+    path g1 first p ->
+    path g2 first p.
+  Proof.
+    intros HR. cbv [subgraph] in HR. revert first.
+    induction p as [|a p IH]; intros first; cbn [path]; auto.
+    intros [He Hp]. eauto.
+  Qed.
+
+  Lemma path_snoc g first p v :
+    path g first (p ++ [v]) <-> path g first p /\ edge g (last p first) v.
+  Proof.
+    revert first. induction p as [|a p IH]; intros first.
+    - simpl. tauto.
+    - cbn [app path]. rewrite IH, last_cons. tauto.
+  Qed.
+
+  Lemma reaches_subgraph g1 g2 u v :
+    subgraph g1 g2 ->
+    reaches g1 u v ->
+    reaches g2 u v.
+  Proof.
+    cbv [reaches path_to]. intros HR [p [Hp Hlast]].
+    exists p. split; [eapply path_subgraph; eauto | exact Hlast].
+  Qed.
+
+  Lemma reaches_step g u v w :
+    reaches g u v ->
+    edge g v w ->
+    reaches g u w.
+  Proof.
+    cbv [reaches path_to]. intros [p [Hp Hlast]] Hedge.
+    exists (p ++ [w]). rewrite path_snoc, last_last. subst v.
+    split; [split; assumption | reflexivity].
+  Qed.
+
+  Lemma path_sink_last g v first p :
+    (forall w, ~ edge g v w) ->
+    path g first p ->
+    In v p ->
+    last p first = v.
+  Proof.
+    intros Hsink. revert first. induction p as [|a p IH]; intros first Hpath Hin.
+    - destruct Hin.
+    - destruct Hpath as [He Hp]. rewrite last_cons. destruct Hin as [-> | Hin].
+      + destruct p as [|b p']; [reflexivity|]. destruct Hp as [Hvb _].
+        exfalso. eapply Hsink; exact Hvb.
+      + apply IH; assumption.
+  Qed.
+
   Lemma path_in_graph g root p :
-    path (edge g) root p ->
+    path g root p ->
     incl (removelast (root :: p)) (sources g).
   Proof.
     revert root. induction p; intros root Hroot.
@@ -169,7 +263,7 @@ Section ops.
   Qed.
 
   Definition reachable_subgraph (g : graph) root (g' : graph) :=
-    forall u v, edge g' u v <-> edge g u v /\ reaches (edge g) root u.
+    forall u v, edge g' u v <-> edge g u v /\ reaches g root u.
 
   Lemma reachable_subgraph_unique g root g1 g2 :
     reachable_subgraph g root g1 ->
@@ -254,7 +348,7 @@ Section ops.
     length (all_edges g).
 
   Definition is_tree g root :=
-    all_reachable (edge g) root /\
+    all_reachable g root /\
       S (num_edges g) = num_nodes g root.
 
   Definition is_locally_tree g root :=
@@ -299,10 +393,7 @@ Section ops.
           intros [[Hr | []] | Hin]; [ congruence | exact (Hv Hin) ].
         * apply list_union_preserves_NoDup. apply all_nodes_NoDup.
       + intro x. rewrite In_list_union_spec, all_nodes_put. cbn [In].
-        rewrite In_list_union_spec. cbn [In].
-        split.
-        * intros [Hr | [Hg | [Hxu | Hxv]]]; subst; tauto.
-        * intros [Hxv | [Hr | Hg]]; subst; tauto.
+        rewrite In_list_union_spec. graph.
     - reflexivity.
   Qed.
 
@@ -314,10 +405,8 @@ Section ops.
     intros Hu Hv. unfold num_nodes. apply NoDup_same_length.
     - apply list_union_preserves_NoDup. apply all_nodes_NoDup.
     - apply list_union_preserves_NoDup. apply all_nodes_NoDup.
-    - intro x. rewrite !In_list_union_spec, all_nodes_put. cbn [In] in *.
-      split.
-      + intros [Hr | [Hg | [Hxu | Hxv]]]; subst; tauto.
-      + tauto.
+    - intro x. rewrite !In_list_union_spec, all_nodes_put.
+      graph.
   Qed.
 End ops.
 End graph.

@@ -1,7 +1,7 @@
 From Stdlib Require Import List Lia.
 From coqutil Require Import Datatypes.List Datatypes.ListSet Eqb.
 From coqutil Require Import Tactics.destr Tactics.Tactics Tactics.fwd.
-From GraphSearch Require Import List EdgeRel GraphInterface.
+From GraphSearch Require Import List GraphInterface.
 Import ListNotations.
 
 
@@ -213,7 +213,7 @@ Section __.
 
     Definition no_long_paths (g : graph) root vs n :=
       forall p,
-        path (graph.edge g) root p ->
+        graph.path g root p ->
         NoDup (root :: p) ->
         Forall (fun v => ~In v vs) (root :: p) ->
         S (S (length p)) < n.
@@ -473,7 +473,7 @@ Section __.
   Lemma dfs_fold'_connected g n vs st0 st root u vs' :
     dfs_fold' g n (vs, st0) root = (vs', st) ->
     In u vs' ->
-    In u vs \/ reaches (graph.edge g) root u.
+    In u vs \/ graph.reaches g root u.
   Proof.
     revert vs st0 st root u vs'.
     induction n; intros vs st0 st root u vs' H Hu.
@@ -483,17 +483,17 @@ Section __.
       + cbv [finish'] in *. Tactics.destruct_one_match_hyp. fwd.
         revert vs' s Hu E. apply fold_left_inv.
         -- intros vs' s Hu ?. fwd. destruct Hu as [Hu|Hu]; auto.
-           subst. right. apply reaches_self.
+           subst. right. apply graph.reaches_self.
         -- intros [vs0 s0] b Hb IH vs' s' Hu H. specialize IH with (2 := eq_refl).
            eapply IHn in H; [|eassumption]. destruct H as [H|H].
            ++ apply IH in H. destruct H as [H|H]; auto.
-           ++ right. eapply reaches_step_before; eassumption.
+           ++ right. eapply graph.reaches_step_before; eassumption.
   Qed.
 
   Lemma dfs_fold_connected g vs st0 st root u :
     dfs_fold g st0 root = (vs, st) ->
     In u vs ->
-    reaches (graph.edge g) root u.
+    graph.reaches g root u.
   Proof.
     intros H1 H2. eapply dfs_fold'_connected in H1; eauto.
     destruct H1 as [[]|?]. assumption.
@@ -501,11 +501,11 @@ Section __.
 
   Lemma dfs_fold_explores_everything g st root vs u v st' :
     dfs_fold g st root = (vs, st') ->
-    reaches (graph.edge g) root u ->
+    graph.reaches g root u ->
     graph.edge g u v ->
     In u vs.
   Proof.
-    intros. cbv [dfs_fold plus] in H. eapply edge_closed_reaches_in; cycle 1.
+    intros. cbv [dfs_fold plus] in H. eapply graph.edge_closed_reaches_in; cycle 1.
     2: eassumption.
     { apply dfs_fold'_self in H; [|lia]. assumption. }
     intros. eapply visited_closed in H; eauto.
@@ -569,47 +569,47 @@ Section __.
   Qed.
 
   Lemma all_reachable_all_nodes g root u :
-    all_reachable (graph.edge g) root ->
+    graph.all_reachable g root ->
     In u (graph.all_nodes g) ->
-    reaches (graph.edge g) root u.
+    graph.reaches g root u.
   Proof.
     intros Hall Hin. apply graph.all_nodes_spec in Hin. destruct Hin as [w [He | He]].
     - eapply Hall. exact He.
-    - eapply reaches_step.
+    - eapply graph.reaches_step.
       + eapply Hall. exact He.
       + exact He.
   Qed.
 
   Lemma dfs_fold_state_all_reachable root st0 vs st p g :
     dfs_fold_state root [root] st0 vs st p g ->
-    all_reachable (graph.edge g) root.
+    graph.all_reachable g root.
   Proof.
-    induction 1; cbv [all_reachable]; intros u' v' Huv.
+    induction 1; cbv [graph.all_reachable]; intros u' v' Huv.
     - apply graph.edge_empty in Huv. contradiction.
     - apply graph.edge_put in Huv. destruct Huv as [Huv|Huv].
-      + eapply reaches_weaken; [|eapply IHdfs_fold_state; eauto].
-        intros. apply graph.edge_put. auto.
+      + eapply graph.reaches_subgraph; [|eapply IHdfs_fold_state; eauto].
+        apply graph.subgraph_put.
       + fwd.
         pose proof dfs_fold_state_p_good as Hp. especialize Hp; [eassumption|].
         pose proof dfs_fold_state_vs_good as Hvs. especialize Hvs; [eassumption|].
         specialize (Hp u' ltac:(simpl; auto)). apply Hvs in Hp.
         destruct Hp as [Hp|Hp].
-        -- subst. apply reaches_self.
-        -- eapply reaches_weaken.
+        -- subst. apply graph.reaches_self.
+        -- eapply graph.reaches_subgraph.
            2: { apply all_reachable_all_nodes; eassumption. }
-           intros. apply graph.edge_put. auto.
+           apply graph.subgraph_put.
     - apply graph.edge_put in Huv. destruct Huv as [Huv|Huv].
-      + eapply reaches_weaken; [|eapply IHdfs_fold_state; eauto].
-        intros. apply graph.edge_put. auto.
+      + eapply graph.reaches_subgraph; [|eapply IHdfs_fold_state; eauto].
+        apply graph.subgraph_put.
       + fwd.
         pose proof dfs_fold_state_p_good as Hp. especialize Hp; [eassumption|].
         pose proof dfs_fold_state_vs_good as Hvs. especialize Hvs; [eassumption|].
         specialize (Hp u' ltac:(simpl; auto)). apply Hvs in Hp.
         destruct Hp as [Hp|Hp].
-        -- subst. apply reaches_self.
-        -- eapply reaches_weaken.
+        -- subst. apply graph.reaches_self.
+        -- eapply graph.reaches_subgraph.
            2: { apply all_reachable_all_nodes; eassumption. }
-           intros. apply graph.edge_put. auto.
+           apply graph.subgraph_put.
     - eapply IHdfs_fold_state. eassumption.
   Qed.
 
@@ -618,7 +618,7 @@ Section __.
     same_set vs (root :: graph.all_nodes g) /\
       incl p vs /\
       In root vs /\
-      all_reachable (graph.edge g) root.
+      graph.all_reachable g root.
   Proof.
     eauto 8 using dfs_fold_state_p_good, dfs_fold_state_root_seen, dfs_fold_state_vs_good, dfs_fold_state_all_reachable.
   Qed.
