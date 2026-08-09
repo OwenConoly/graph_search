@@ -254,6 +254,17 @@ Section ops.
     rewrite H1, H2. reflexivity.
   Qed.
 
+  Lemma reachable_subgraph_all (g : graph) root (g' : graph) :
+    all_reachable g root ->
+    reachable_subgraph g root g' ->
+    g' = g.
+  Proof.
+    intros Hall Hrs. cbv [reachable_subgraph] in Hrs.
+    apply graph_ext. intros u v. rewrite Hrs. split.
+    - intros [He _]. exact He.
+    - intro He. split; [ exact He | eapply Hall; exact He ].
+  Qed.
+
   Context {eqbV : Eqb vertex} {eqbV_ok : Eqb_ok eqbV}.
 
   Definition all_nodes g :=
@@ -294,6 +305,16 @@ Section ops.
     graph. eauto 10.
   Qed.
 
+  Lemma In_map_snd_all_edges (g : graph) x :
+    In x (map snd (all_edges g)) <-> exists u, edge g u x.
+  Proof.
+    rewrite in_map_iff. split.
+    - intros [[u y] [Hs Hin]]. cbn in Hs. subst y.
+      rewrite In_all_edges in Hin. eauto.
+    - intros [u He]. exists (u, x). cbn. split; [ reflexivity | ].
+      apply In_all_edges. exact He.
+  Qed.
+
   Lemma all_edges_NoDup g :
     NoDup (all_edges g).
   Proof.
@@ -309,6 +330,21 @@ Section ops.
 
   Definition num_edges g :=
     length (all_edges g).
+
+  Lemma subgraph_eq (g g' : graph) :
+    subgraph g' g ->
+    num_edges g' = num_edges g ->
+    g' = g.
+  Proof.
+    intros Hsub Hlen. apply graph_ext. intros u v. split; [ exact (Hsub u v) | ].
+    intro He. rewrite <- In_all_edges in He |- *.
+    assert (Hincl : incl (all_edges g) (all_edges g')).
+    { apply NoDup_length_incl.
+      - apply all_edges_NoDup.
+      - unfold num_edges in Hlen. rewrite Hlen. apply le_n.
+      - intros [a b] Hab. rewrite In_all_edges in Hab |- *. apply Hsub. exact Hab. }
+    exact (Hincl _ He).
+  Qed.
 
   Definition is_tree g root :=
     all_reachable g root /\

@@ -372,16 +372,6 @@ Section __.
         apply in_map_iff. exists s. auto.
   Qed.
 
-  Lemma In_map_snd_all_edges (gg : graph) x :
-    In x (map snd (graph.all_edges gg)) <-> exists u, graph.edge gg u x.
-  Proof.
-    rewrite in_map_iff. split.
-    - intros [[u y] [Hs Hin]]. cbn in Hs. subst y.
-      rewrite graph.In_all_edges in Hin. eauto.
-    - intros [u He]. exists (u, x). cbn. split; [ reflexivity | ].
-      apply graph.In_all_edges. exact He.
-  Qed.
-
   Lemma node_is_target_or_root t x :
     In x (nodes_of t) ->
     x = root t \/ exists u, graph.edge (graph_of t) u x.
@@ -475,7 +465,7 @@ Section __.
       eapply unique_parent; eassumption.
     - destruct t as [v ts]. cbn [children]. cbv [valid_tree] in Hv. cbn [nodes_of] in Hv.
       apply NoDup_cons_iff in Hv. exact (proj2 Hv).
-    - intro x. rewrite In_map_snd_all_edges. destruct t as [v ts]. cbn [children]. split.
+    - intro x. rewrite graph.In_map_snd_all_edges. destruct t as [v ts]. cbn [children]. split.
       + intros [u He]. pose proof (edge_nodes _ _ _ He) as Hn. cbn [nodes_of] in Hn.
         destruct Hn as [_ Hx]. cbn [In] in Hx. destruct Hx as [Hx | Hx].
         * exfalso. subst x. apply (root_not_target (tree_cons v ts) u Hv). exact He.
@@ -561,17 +551,6 @@ Section __.
     - apply is_tree_graph_of. assumption.
   Qed.
 
-  Lemma reachable_subgraph_all (g : graph) root (g' : graph) :
-    graph.all_reachable g root ->
-    graph.reachable_subgraph g root g' ->
-    g' = g.
-  Proof.
-    intros Hall Hrs. cbv [graph.reachable_subgraph] in Hrs.
-    apply graph.graph_ext. intros u v. rewrite Hrs. split.
-    - intros [He _]. exact He.
-    - intro He. split; [ exact He | eapply Hall; exact He ].
-  Qed.
-
   Lemma nodes_of_tree_of g root :
     exists g',
       graph.reachable_subgraph g root g' /\
@@ -589,30 +568,15 @@ Section __.
     rewrite (Ep1p2 n), (Hvs n). reflexivity.
   Qed.
 
-  Lemma subgraph_eq (g g' : graph) :
-    graph.subgraph g' g ->
-    graph.num_edges g' = graph.num_edges g ->
-    g' = g.
-  Proof.
-    intros Hsub Hlen. apply graph.graph_ext. intros u v. split; [ exact (Hsub u v) | ].
-    intro He. rewrite <- graph.In_all_edges in He |- *.
-    assert (Hincl : incl (graph.all_edges g) (graph.all_edges g')).
-    { apply NoDup_length_incl.
-      - apply graph.all_edges_NoDup.
-      - unfold graph.num_edges in Hlen. lia.
-      - intros [a b] Hab. rewrite graph.In_all_edges in Hab |- *. apply Hsub. exact Hab. }
-    exact (Hincl _ He).
-  Qed.
-
   Lemma round_trip g u :
     graph.is_tree g u ->
     graph_of (tree_of g u) = g.
   Proof.
     intro Htree. pose proof Htree as Htree'. cbv [graph.is_tree] in Htree'.
     destruct Htree' as [Hall Hcount].
-    apply subgraph_eq; [ apply graph_of_tree_of_subgraph | ].
+    apply graph.subgraph_eq; [ apply graph_of_tree_of_subgraph | ].
     destruct (nodes_of_tree_of g u) as [g' [Hrs Hnodes]].
-    pose proof (reachable_subgraph_all g u g' Hall Hrs) as Hg'. subst g'.
+    pose proof (graph.reachable_subgraph_all g u g' Hall Hrs) as Hg'. subst g'.
     pose proof (is_tree_graph_of (tree_of g u) (tree_of_valid_tree g u)) as Hcnt.
     rewrite (num_nodes_graph_of _ (tree_of_valid_tree g u)) in Hcnt.
     assert (Hlen : length (nodes_of (tree_of g u)) = graph.num_nodes g u).
