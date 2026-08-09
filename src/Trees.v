@@ -201,6 +201,10 @@ Section __.
     rewrite !stack_nodes_cons. cbn [flat_map nodes_of]. rewrite <- app_assoc. reflexivity.
   Qed.
 
+  Lemma stack_nodes_single t :
+    stack_nodes [[t]] = nodes_of t.
+  Proof. cbv [stack_nodes]. cbn [flat_map]. rewrite !app_nil_r. reflexivity. Qed.
+
   (* Along the DFS: one frame per open node plus the outer frame, and the nodes
      collected so far (in the finished trees and on the path) are exactly the
      distinct visited set. *)
@@ -209,19 +213,19 @@ Section __.
       r [r] ([] :: [[]]) seen tss pth gg ->
     length tss = S (length pth) /\
     NoDup (stack_nodes tss ++ pth) /\
-    incl (stack_nodes tss ++ pth) seen.
+    same_set (stack_nodes tss ++ pth) seen.
   Proof.
     intros HD. induction HD.
     - ssplit.
       + reflexivity.
       + rewrite !stack_nodes_cons. cbn [flat_map app].
         apply NoDup_cons; [ intro Hc; destruct Hc | apply NoDup_nil ].
-      + rewrite !stack_nodes_cons. cbn [flat_map app]. apply incl_refl.
-    - cbv [on_tree_edge]. destruct IHHD as (Hlen & Hnodup & Hincl).
+      + rewrite !stack_nodes_cons. cbn [flat_map app]. apply same_set_refl.
+    - cbv [on_tree_edge]. destruct IHHD as (Hlen & Hnodup & Hsame).
       match goal with H : set_contains _ _ = false |- _ =>
         apply set_contains_false in H; rename H into Hseen end.
       assert (Hvni : ~ In v (stack_nodes st ++ (u :: p))).
-      { intro Hv. apply Hseen. apply Hincl. exact Hv. }
+      { intro Hv. apply Hseen. apply (proj1 (Hsame v)). exact Hv. }
       ssplit.
       + cbn [length] in Hlen |- *. lia.
       + rewrite stack_nodes_cons. cbn [flat_map app].
@@ -229,13 +233,10 @@ Section __.
         * apply Permutation_middle.
         * apply NoDup_cons; [ exact Hvni | exact Hnodup ].
       + rewrite stack_nodes_cons. cbn [flat_map app].
-        intros x Hx. apply in_app_or in Hx. destruct Hx as [Hx | Hx].
-        * right. apply Hincl. apply in_or_app. left. exact Hx.
-        * cbn [In] in Hx. destruct Hx as [Hv | Hx].
-          -- left. exact Hv.
-          -- right. apply Hincl. apply in_or_app. right. exact Hx.
+        cbv [same_set] in Hsame |- *. intro a. specialize (Hsame a).
+        rewrite !in_app_iff in Hsame |- *. cbn [In] in Hsame |- *. tauto.
     - cbv [on_untree_edge]. exact IHHD.
-    - destruct IHHD as (Hlen & Hnodup & Hincl).
+    - destruct IHHD as (Hlen & Hnodup & Hsame).
       destruct st as [| ts [| ts' tss']].
       + cbn [length] in Hlen. lia.
       + cbn [length] in Hlen. lia.
@@ -249,7 +250,8 @@ Section __.
           -- apply Permutation_sym. apply Permutation_middle.
           -- exact Hnodup.
         * rewrite stack_nodes_finish. cbn [app].
-          intros x Hx. graph. apply Hincl. rewrite in_app_iff in *. graph.
+          cbv [same_set] in Hsame |- *. intro a. specialize (Hsame a).
+          rewrite in_app_iff in Hsame. cbn [In] in Hsame |- *. rewrite in_app_iff. tauto.
   Qed.
 
   Lemma tree_of_valid_tree (g : graph) u :
@@ -354,12 +356,6 @@ Section __.
 
   Definition is_tree_alt g r :=
     exists t, valid_tree t /\ g = graph_of t /\ r = root t.
-
-  Lemma nodes_of_tree_of g root :
-    exists g',
-      graph.reachable_subgraph g root g' /\
-        forall n, In n (nodes_of (tree_of g root)) <-> In n (graph.all_nodes g').
-  Proof. Admitted.
 
   Lemma all_reachable_graph_of t :
     graph.all_reachable (graph_of t) (root t).
@@ -565,21 +561,75 @@ Section __.
     - apply is_tree_graph_of. assumption.
   Qed.
 
+  Lemma reachable_subgraph_all (g : graph) root (g' : graph) :
+    graph.all_reachable g root ->
+    graph.reachable_subgraph g root g' ->
+    g' = g.
+  Proof.
+    intros Hall Hrs. cbv [graph.reachable_subgraph] in Hrs.
+    apply graph.graph_ext. intros u v. rewrite Hrs. split.
+    - intros [He _]. exact He.
+    - intro He. split; [ exact He | eapply Hall; exact He ].
+  Qed.
+
+  Lemma nodes_of_tree_of g root :
+    exists g',
+      graph.reachable_subgraph g root g' /\
+        forall n, In n (nodes_of (tree_of g root)) <-> In n (root :: graph.all_nodes g').
+  Proof.
+    cbv [tree_of].
+    destruct (dfs_fold on_untree_edge on_tree_edge on_finish g [[]] root) as [vs tss] eqn:E.
+    apply dfs_fold_spec in E. fwd.
+    exists g'. split; [ exact Ep0 | ].
+    pose proof Ep1 as Hvs. apply dfs_fold_state_vs_good in Hvs.
+    pose proof Ep1 as Hr. apply tree_of_root_invariant in Hr. cbv [root_inv] in Hr. fwd.
+    apply tree_of_invariant in Ep1. fwd.
+    rewrite app_nil_r, stack_nodes_single in Ep1p2.
+    intro n. cbn [nodes_of]. cbv [same_set] in Ep1p2, Hvs.
+    rewrite (Ep1p2 n), (Hvs n). reflexivity.
+  Qed.
+
   Lemma subgraph_eq (g g' : graph) :
     graph.subgraph g' g ->
     graph.num_edges g' = graph.num_edges g ->
     g' = g.
-  Proof. Admitted.
+  Proof.
+    intros Hsub Hlen. apply graph.graph_ext. intros u v. split; [ exact (Hsub u v) | ].
+    intro He. rewrite <- graph.In_all_edges in He |- *.
+    assert (Hincl : incl (graph.all_edges g) (graph.all_edges g')).
+    { apply NoDup_length_incl.
+      - apply graph.all_edges_NoDup.
+      - unfold graph.num_edges in Hlen. lia.
+      - intros [a b] Hab. rewrite graph.In_all_edges in Hab |- *. apply Hsub. exact Hab. }
+    exact (Hincl _ He).
+  Qed.
 
   Lemma round_trip g u :
+    graph.is_tree g u ->
     graph_of (tree_of g u) = g.
-  Proof. Admitted.
+  Proof.
+    intro Htree. pose proof Htree as Htree'. cbv [graph.is_tree] in Htree'.
+    destruct Htree' as [Hall Hcount].
+    apply subgraph_eq; [ apply graph_of_tree_of_subgraph | ].
+    destruct (nodes_of_tree_of g u) as [g' [Hrs Hnodes]].
+    pose proof (reachable_subgraph_all g u g' Hall Hrs) as Hg'. subst g'.
+    pose proof (is_tree_graph_of (tree_of g u) (tree_of_valid_tree g u)) as Hcnt.
+    rewrite (num_nodes_graph_of _ (tree_of_valid_tree g u)) in Hcnt.
+    assert (Hlen : length (nodes_of (tree_of g u)) = graph.num_nodes g u).
+    { unfold graph.num_nodes. apply NoDup_same_length.
+      - exact (tree_of_valid_tree g u).
+      - apply list_union_preserves_NoDup. apply graph.all_nodes_NoDup.
+      - intro n. rewrite Hnodes, In_list_union_spec. cbn [In]. tauto. }
+    lia.
+  Qed.
 
   Lemma is_tree_is_tree_alt g root :
     graph.is_tree g root ->
     is_tree_alt g root.
   Proof.
-    cbv [graph.is_tree is_tree_alt]. intros. fwd.
-    exists (tree_of g root).
-  Admitted.
+    intro Htree. cbv [is_tree_alt]. exists (tree_of g root). ssplit.
+    - apply tree_of_valid_tree.
+    - symmetry. apply round_trip. exact Htree.
+    - symmetry. apply root_tree_of.
+  Qed.
 End __.
