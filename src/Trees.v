@@ -4,9 +4,8 @@ From Stdlib Require Import List Lia Permutation.
 Import ListNotations.
 
 Section __.
-  Context {V : Type}.
-  Context {graph : graph.graph V}.
-  Context {graph_ok : graph.ok graph}.
+  Context {V : Type} {eqbV : Eqb V} {eqbV_ok : Eqb_ok eqbV}.
+  Context {graph : graph.graph V} {graph_ok : graph.ok graph}.
 
   Unset Elimination Schemes.
   Inductive tree : Type :=
@@ -139,37 +138,6 @@ Section __.
     graph.edge (graph_of s) x y ->
     graph.edge (graph_of (tree_cons v ts)) x y.
   Proof. intros Hs He. apply edge_graph_of. right. exists s. auto. Qed.
-
-  Lemma valid_tree_graph_edge t u :
-    valid_tree t ->
-    graph.edge (graph_of t) (root t) u ->
-    In u (map root (children t)).
-  Proof.
-    destruct t as [v ts]. intros Hvalid He.
-    apply edge_graph_of in He. destruct He as [[_ Hb] | [s [Hs He]]].
-    - exact Hb.
-    - exfalso. apply (root_not_in_children v ts Hvalid).
-      apply in_flat_map. exists s. split; [exact Hs | exact (proj1 (edge_nodes s v u He))].
-  Qed.
-
-  Lemma edge_in_child v ts s a b :
-    valid_tree (tree_cons v ts) ->
-    In s ts -> In a (nodes_of s) ->
-    graph.edge (graph_of (tree_cons v ts)) a b ->
-    graph.edge (graph_of s) a b.
-  Proof.
-    intros Hvalid Hs Ha He. apply edge_graph_of in He.
-    destruct He as [[Hav _] | [s' [Hs' He]]].
-    - exfalso. subst a. apply (root_not_in_children v ts Hvalid).
-      apply in_flat_map. exists s. auto.
-    - assert (s' = s).
-      { eapply disjoint_children; try eassumption.
-        apply edge_nodes in He. fwd. assumption. }
-      subst s'. exact He.
-  Qed.
-
-  Context {eqbV : Eqb V}.
-  Context {eqbV_ok : Eqb_ok eqbV}.
 
   Definition on_untree_edge (ts : list (list tree)) (_ : list V) (_ : V) := ts.
   Definition on_tree_edge (ts : list (list tree)) (_ : list V) (_ : V) := [] :: ts.
@@ -445,11 +413,9 @@ Section __.
     - intro x. rewrite In_list_union_spec, graph.all_nodes_spec. cbn [In]. split.
       + intros [[Hx | []] | [u [He | He]]].
         * subst x. apply nodes_of_root.
-        * exact (proj1 (edge_nodes _ _ _ He)).
-        * exact (proj2 (edge_nodes _ _ _ He)).
-      + intro Hx. destruct (node_is_target_or_root t x Hx) as [Hr | [u Hu]].
-        * left. left. congruence.
-        * right. exists u. right. exact Hu.
+        * apply edge_nodes in He. fwd. assumption.
+        * apply edge_nodes in He. fwd. assumption.
+      + intro Hx. apply node_is_target_or_root in Hx. graph.
   Qed.
 
   Lemma num_edges_graph_of t :

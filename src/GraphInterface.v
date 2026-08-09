@@ -25,7 +25,7 @@ Class graph {vertex} := {
     sources : rep -> list vertex;
   }.
 Arguments graph : clear implicits.
-Global Coercion rep : graph >-> Sortclass.
+Local Coercion rep : graph >-> Sortclass.
 Global Hint Mode graph + : typeclass_instances.
 Local Hint Mode graph - : typeclass_instances.
 
@@ -34,7 +34,7 @@ Definition edge {vertex} {graph : graph vertex} (g : graph) u v :=
 
 Class ok {vertex} {graph : graph vertex} : Prop := {
     graph_ext : forall g1 g2, (forall u v, edge g1 u v <-> edge g2 u v) -> g1 = g2;
-    edge_empty : forall u v, ~edge graph.empty u v;
+    edge_empty : forall u v, ~edge empty u v;
     edge_put : forall g u u' v v', edge (put g u v) u' v' <-> edge g u' v' \/ u = u' /\ v = v';
     edge_remove : forall g u v u' v', edge (remove g u v) u' v' <-> edge g u' v' /\ (u <> u' \/ v <> v');
     sources_spec : forall g u, In u (sources g) <-> exists v, edge g u v;

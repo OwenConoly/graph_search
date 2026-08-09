@@ -8,8 +8,6 @@ Lemma same_set_refl A (x : list A) :
   same_set x x.
 Proof. intros a. reflexivity. Qed.
 
-Hint Immediate same_set_refl : core.
-
 Lemma fold_right_inv_NoDup {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a :
   NoDup l ->
   P [] a ->
@@ -18,11 +16,6 @@ Lemma fold_right_inv_NoDup {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a
 Proof.
   intros H ? ?. induction l; simpl; auto. simpl in *. inversion_clear H. eauto 6.
 Qed.
-
-Lemma in_not_nil A x (l : list A) :
-  In x l ->
-  l <> nil.
-Proof. destruct l; simpl; congruence. Qed.
 
 Lemma neq_nil_iff_exists_in A (l : list A) :
   l <> [] <-> exists x, In x l.
@@ -72,14 +65,6 @@ Lemma last_cons_nonempty A (a : A) l d :
 Proof.
   intro Hl. rewrite last_cons. destruct l as [|b l']; [ congruence | ].
   apply last_cons_last_cons.
-Qed.
-
-Lemma In_last A (l : list A) d :
-  l <> [] ->
-  In (last l d) l.
-Proof.
-  intros H. rewrite (app_removelast_last d H) at 2.
-  apply in_or_app. right. left. reflexivity.
 Qed.
 
 Lemma NoDup_same_length {A} (l1 l2 : list A) :
