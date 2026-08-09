@@ -8,9 +8,7 @@ Section __.
   Context {eqbV_ok : Eqb_ok eqbV} {graph_ok : graph.ok graph}.
 
   Definition check_locally_tree g root :=
-    let '(_, is_tree) :=
-      dfs_fold (fun _ _ _ => false) (fun tree _ _ => tree) (fun tree _ _ => tree) g true root in
-    is_tree.
+    dfs_fold (fun _ _ _ => false) (fun tree _ _ => tree) (fun tree _ _ => tree) g true root.
 
   Notation Reflects x := (BoolSpec x (~x)).
 
@@ -45,14 +43,33 @@ Section __.
   Qed.
 
   Lemma check_tree_spec g root :
-    Reflects (graph.is_locally_tree g root) (check_locally_tree g root).
+    let '(vs, is_tree) := check_locally_tree g root in
+    Reflects (graph.is_locally_tree g root) is_tree /\
+      (forall v, In v vs <-> graph.reaches g root v).
   Proof.
-    cbv [check_locally_tree]. Tactics.destruct_one_match.
-    apply dfs_fold_spec in E. fwd.
-    apply check_tree_spec' in Ep1.
-    eapply Reflects_iff; [eassumption|].
-    cbv [graph.is_locally_tree]. split; intros H; fwd; eauto.
-    eapply graph.reachable_subgraph_unique in Ep0; [|exact Hp0].
-    subst. assumption.
+    destruct (check_locally_tree g root) as [vs is_tree] eqn:E.
+    cbv [check_locally_tree] in E.
+    split.
+    - apply dfs_fold_spec in E. fwd.
+      apply check_tree_spec' in Ep1.
+      eapply Reflects_iff; [eassumption|].
+      cbv [graph.is_locally_tree]. split; intros H; fwd; eauto.
+      eapply graph.reachable_subgraph_unique in Ep0; [|exact Hp0].
+      subst. assumption.
+    - intro v.
+      assert (Hconn : forall u, In u vs -> graph.reaches g root u).
+      { intros u Hu. eapply dfs_fold_connected; [ exact E | exact Hu ]. }
+      apply dfs_fold_spec in E. fwd.
+      cbv [graph.reachable_subgraph] in Ep0.
+      apply dfs_fold_state_vs_good in Ep1. cbv [same_set] in Ep1.
+      assert (Hclosed : forall u w, In u vs -> graph.edge g u w -> In w vs).
+      { intros u w Hu Hedge. rewrite Ep1. apply in_cons.
+        rewrite graph.all_nodes_spec. exists u. right. apply Ep0. auto. }
+      split.
+      + exact (Hconn v).
+      + intro Hr. apply (graph.edge_closed_reaches_in g root v vs).
+        * exact Hclosed.
+        * rewrite Ep1. apply in_eq.
+        * exact Hr.
   Qed.
 End __.
