@@ -55,4 +55,30 @@ Section __.
     eapply graph.reachable_subgraph_unique in Ep0; [|exact Hp0].
     subst. assumption.
   Qed.
+
+  Definition get_reachable_nodes g root :=
+    fst (dfs_fold (fun _ _ _ => tt) (fun _ _ _ => tt) (fun _ _ _ => tt) g tt root).
+
+  Lemma get_reachable_nodes_spec g root v :
+    In v (get_reachable_nodes g root) <-> graph.reaches g root v.
+  Proof.
+    cbv [get_reachable_nodes].
+    destruct (dfs_fold (fun _ _ _ => tt) (fun _ _ _ => tt) (fun _ _ _ => tt) g tt root)
+      as [vs st] eqn:E.
+    cbn [fst].
+    assert (Hconn : forall u, In u vs -> graph.reaches g root u).
+    { intros u Hu. eapply dfs_fold_connected; [ exact E | exact Hu ]. }
+    apply dfs_fold_spec in E. fwd.
+    cbv [graph.reachable_subgraph] in Ep0.
+    apply dfs_fold_state_vs_good in Ep1. cbv [same_set] in Ep1.
+    assert (Hclosed : forall u w, In u vs -> graph.edge g u w -> In w vs).
+    { intros u w Hu Hedge. rewrite Ep1. apply in_cons.
+      rewrite graph.all_nodes_spec. exists u. right. apply Ep0. auto. }
+    split.
+    - exact (Hconn v).
+    - intro Hr. apply (graph.edge_closed_reaches_in g root v vs).
+      + exact Hclosed.
+      + rewrite Ep1. apply in_eq.
+      + exact Hr.
+  Qed.
 End __.
