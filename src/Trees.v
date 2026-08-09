@@ -354,4 +354,20 @@ Section __.
     simpl. apply edge_graph_of_forest_cons. auto.
   Qed.
 
+  Definition is_tree_alt g root :=
+    g = graph_of (tree_of g root).
+
+  Lemma all_reachable_graph_of t :
+    graph.all_reachable (graph_of t) (root t).
+  Proof. Admitted.
+
+  Lemma is_tree_graph_of g root t :
+    valid_tree t ->
+    S (graph.num_edges g) = graph.num_nodes g root.
+  Proof. Admitted.
+
+  Lemma is_tree_alt_is_tree g root :
+    is_tree_alt g root ->
+    graph.is_tree g root.
+  Proof. Admitted.
 End __.
