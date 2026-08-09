@@ -1,5 +1,5 @@
 From GraphSearch Require Import DFS GraphInterface List.
-From coqutil Require Import Eqb Tactics.fwd Tactics Datatypes.List.
+From coqutil Require Import Eqb Tactics.fwd Tactics Datatypes.List Datatypes.ListSet.
 From Stdlib Require Import List Lia Permutation.
 Import ListNotations.
 
@@ -325,10 +325,8 @@ Section __.
       rewrite graph_of_leaf, !graph.edge_empty_iff in Hp. tauto.
     - cbv [on_tree_edge] in Hp. cbn [pedge] in Hp.
       rewrite graph_of_leaf, graph.edge_empty_iff in Hp. rewrite graph.edge_put.
-      destruct Hp as [[] | [Hp | Hp]].
-      + fwd. right. split; reflexivity.
-      + left. apply IHHD. exact Hp.
-    - cbv [on_untree_edge] in Hp. rewrite graph.edge_put. left. apply IHHD. exact Hp.
+      graph.
+    - cbv [on_untree_edge] in Hp. rewrite graph.edge_put. graph.
     - cbv [on_finish] in Hp. repeat Tactics.destruct_one_match_hyp; simpl in *;
         try solve [destruct p; contradiction].
       apply IHHD. destruct p; cbn [pedge] in *.
@@ -357,17 +355,222 @@ Section __.
   Definition is_tree_alt g root :=
     g = graph_of (tree_of g root).
 
-  Lemma all_reachable_graph_of t :
-    graph.all_reachable (graph_of t) (root t).
+  Lemma nodes_of_tree_of g root :
+    exists g',
+      graph.reachable_subgraph g root g' /\
+        forall n, In n (nodes_of (tree_of g root)) <-> In n (graph.all_nodes g').
   Proof. Admitted.
 
-  Lemma is_tree_graph_of g root t :
+  Lemma all_reachable_graph_of t :
+    graph.all_reachable (graph_of t) (root t).
+  Proof.
+    induction t as [v ts IH] using tree_ind.
+    intros u w He. cbn [root] in *.
+    apply edge_graph_of in He. destruct He as [[Hu Hw] | [s [Hs He]]].
+    - subst u. apply graph.reaches_self.
+    - rewrite Forall_forall in IH. specialize (IH s Hs u w He).
+      eapply graph.reaches_step_before.
+      + eapply graph.reaches_subgraph; [ | exact IH ].
+        intros x y Hxy. eapply edge_child_mono; eauto.
+      + apply edge_graph_of. left. split; [ reflexivity | ].
+        apply in_map_iff. exists s. auto.
+  Qed.
+
+  Lemma In_map_snd_all_edges (gg : graph) x :
+    In x (map snd (graph.all_edges gg)) <-> exists u, graph.edge gg u x.
+  Proof.
+    rewrite in_map_iff. split.
+    - intros [[u y] [Hs Hin]]. cbn in Hs. subst y.
+      rewrite graph.In_all_edges in Hin. eauto.
+    - intros [u He]. exists (u, x). cbn. split; [ reflexivity | ].
+      apply graph.In_all_edges. exact He.
+  Qed.
+
+  Lemma node_is_target_or_root t x :
+    In x (nodes_of t) ->
+    x = root t \/ exists u, graph.edge (graph_of t) u x.
+  Proof.
+    induction t as [v ts IH] using tree_ind. cbn [nodes_of root]. intros [Hx | Hx].
+    - left. congruence.
+    - right. apply in_flat_map in Hx. destruct Hx as [s [Hs Hxs]].
+      rewrite Forall_forall in IH. specialize (IH s Hs Hxs).
+      destruct IH as [Hx | [u Hu]].
+      + exists v. apply edge_graph_of. left. split; [ reflexivity | ].
+        subst x. apply in_map_iff. exists s. auto.
+      + exists u. eapply edge_child_mono; eauto.
+  Qed.
+
+  Lemma root_not_target t u :
     valid_tree t ->
-    S (graph.num_edges g) = graph.num_nodes g root.
-  Proof. Admitted.
+    ~ graph.edge (graph_of t) u (root t).
+  Proof.
+    destruct t as [v ts]. cbn [root]. intros Hv He.
+    apply edge_graph_of in He. destruct He as [[Hu Hb] | [s [Hs He]]].
+    - apply in_map_iff in Hb. fwd. subst.
+      eapply root_not_in_children; try eassumption.
+      apply in_flat_map. eexists. split; [eassumption|]. apply nodes_of_root.
+    - apply edge_nodes in He. apply (root_not_in_children v ts Hv).
+      apply in_flat_map. fwd. eauto.
+  Qed.
+
+  Lemma unique_parent t u1 u2 x :
+    valid_tree t ->
+    graph.edge (graph_of t) u1 x ->
+    graph.edge (graph_of t) u2 x ->
+    u1 = u2.
+  Proof.
+    revert u1 u2 x. induction t as [v ts IH] using tree_ind. intros u1 u2 x Hv He1 He2.
+    rewrite Forall_forall in IH.
+    apply edge_graph_of in He1. apply edge_graph_of in He2.
+    destruct He1 as [[Hu1 Hx1] | [s1 [Hs1 He1]]];
+      destruct He2 as [[Hu2 Hx2] | [s2 [Hs2 He2]]].
+    - congruence.
+    - exfalso. apply in_map_iff in Hx1. destruct Hx1 as [s0 [Hr Hs0]].
+      assert (Hss : s0 = s2).
+      { eapply disjoint_children with (a := x); try eassumption.
+        - rewrite <- Hr. apply nodes_of_root.
+        - exact (proj2 (edge_nodes s2 u2 x He2)). }
+      subst s0. apply (root_not_target s2 u2 (valid_tree_child v ts s2 Hv Hs2)).
+      rewrite Hr. exact He2.
+    - exfalso. apply in_map_iff in Hx2. destruct Hx2 as [s0 [Hr Hs0]].
+      assert (Hss : s0 = s1).
+      { eapply disjoint_children with (a := x); try eassumption.
+        - rewrite <- Hr. apply nodes_of_root.
+        - exact (proj2 (edge_nodes s1 u1 x He1)). }
+      subst s0. apply (root_not_target s1 u1 (valid_tree_child v ts s1 Hv Hs1)).
+      rewrite Hr. exact He1.
+    - assert (Hss : s1 = s2).
+      { eapply disjoint_children with (a := x); try eassumption.
+        - exact (proj2 (edge_nodes s1 u1 x He1)).
+        - exact (proj2 (edge_nodes s2 u2 x He2)). }
+      subst s2. eapply (IH s1 Hs1).
+      + eapply valid_tree_child; eassumption.
+      + exact He1.
+      + exact He2.
+  Qed.
+
+  Lemma num_nodes_graph_of t :
+    valid_tree t ->
+    graph.num_nodes (graph_of t) (root t) = length (nodes_of t).
+  Proof.
+    intro Hv. unfold graph.num_nodes. apply NoDup_same_length.
+    - apply list_union_preserves_NoDup. apply graph.all_nodes_NoDup.
+    - exact Hv.
+    - intro x. rewrite In_list_union_spec, graph.all_nodes_spec. cbn [In]. split.
+      + intros [[Hx | []] | [u [He | He]]].
+        * subst x. apply nodes_of_root.
+        * exact (proj1 (edge_nodes _ _ _ He)).
+        * exact (proj2 (edge_nodes _ _ _ He)).
+      + intro Hx. destruct (node_is_target_or_root t x Hx) as [Hr | [u Hu]].
+        * left. left. congruence.
+        * right. exists u. right. exact Hu.
+  Qed.
+
+  Lemma num_edges_graph_of t :
+    valid_tree t ->
+    graph.num_edges (graph_of t) = length (flat_map nodes_of (children t)).
+  Proof.
+    intro Hv. unfold graph.num_edges.
+    rewrite <- (length_map snd (graph.all_edges (graph_of t))).
+    apply NoDup_same_length.
+    - apply FinFun.Injective_map_NoDup_in; [ | apply graph.all_edges_NoDup ].
+      intros [u1 w1] [u2 w2] Hin1 Hin2 Hsnd. cbn in Hsnd. subst w2.
+      rewrite graph.In_all_edges in Hin1, Hin2. f_equal.
+      eapply unique_parent; eassumption.
+    - destruct t as [v ts]. cbn [children]. cbv [valid_tree] in Hv. cbn [nodes_of] in Hv.
+      apply NoDup_cons_iff in Hv. exact (proj2 Hv).
+    - intro x. rewrite In_map_snd_all_edges. destruct t as [v ts]. cbn [children]. split.
+      + intros [u He]. pose proof (edge_nodes _ _ _ He) as Hn. cbn [nodes_of] in Hn.
+        destruct Hn as [_ Hx]. cbn [In] in Hx. destruct Hx as [Hx | Hx].
+        * exfalso. subst x. apply (root_not_target (tree_cons v ts) u Hv). exact He.
+        * exact Hx.
+      + intro Hx.
+        assert (Hin : In x (nodes_of (tree_cons v ts))) by (cbn [nodes_of]; right; exact Hx).
+        destruct (node_is_target_or_root (tree_cons v ts) x Hin) as [Hr | [u Hu]].
+        * exfalso. cbn [root] in Hr. subst x. apply (root_not_in_children v ts Hv). exact Hx.
+        * exists u. exact Hu.
+  Qed.
+
+  Lemma is_tree_graph_of t :
+    valid_tree t ->
+    S (graph.num_edges (graph_of t)) = graph.num_nodes (graph_of t) (root t).
+  Proof.
+    intro Hv.
+    rewrite num_nodes_graph_of by exact Hv.
+    rewrite num_edges_graph_of by exact Hv.
+    destruct t as [v ts]. cbn [nodes_of children]. reflexivity.
+  Qed.
+
+  (* The finished tree rooted at r sits alone in the outer frame once the DFS
+     path is empty; while the path is nonempty its deepest node is r and the
+     outer (bottom) frame is still empty. *)
+  Definition root_inv (r : V) (pth : list V) (tss : list (list tree)) : Prop :=
+    length tss = S (length pth) /\
+    match pth with
+    | [] => exists t, tss = [[t]] /\ root t = r
+    | _ :: _ => last pth r = r /\ last tss [] = []
+    end.
+
+  Lemma tree_of_root_invariant (r : V) seen tss pth (gg : graph) :
+    dfs_fold_state on_untree_edge on_tree_edge on_finish
+      r [r] ([] :: [[]]) seen tss pth gg ->
+    root_inv r pth tss.
+  Proof.
+    intros HD. induction HD.
+    - cbv [root_inv]. split; [ reflexivity | ]. split; reflexivity.
+    - cbv [on_tree_edge root_inv] in IHHD |- *. destruct IHHD as [Hlen Hrest]. split.
+      + cbn [length] in Hlen |- *. lia.
+      + destruct Hrest as [Hlp Hlt]. split.
+        * rewrite last_cons. rewrite (last_cons_last_cons _ u p v r). exact Hlp.
+        * rewrite last_cons. exact Hlt.
+    - cbv [on_untree_edge]. exact IHHD.
+    - cbv [root_inv] in IHHD |- *. destruct IHHD as [Hlen Hrest]. destruct p as [| u' p'].
+      + destruct st as [| f0 [| f1 st']].
+        1,2: cbn [length] in Hlen; lia.
+        assert (st' = []).
+        { destruct st' as [| a st'']; [ reflexivity | cbn [length] in Hlen; lia ]. }
+        subst st'. destruct Hrest as [Hlp Hlt].
+        cbn [last] in Hlp, Hlt. subst u. subst f1.
+        cbv [on_finish]. split.
+        * reflexivity.
+        * exists (tree_cons r f0). split; reflexivity.
+      + destruct st as [| f0 [| f1 st']].
+        1,2: cbn [length] in Hlen; lia.
+        assert (Hst' : st' <> []).
+        { intro. subst st'. cbn [length] in Hlen. lia. }
+        destruct Hrest as [Hlp Hlt]. cbv [on_finish]. split.
+        * cbn [length] in Hlen |- *. lia.
+        * split.
+          -- rewrite last_cons in Hlp. rewrite (last_cons_last_cons _ u' p' u r) in Hlp.
+             exact Hlp.
+          -- rewrite (last_cons_nonempty _ (tree_cons u f0 :: f1) st' [] Hst').
+             rewrite (last_cons_nonempty _ f0 (f1 :: st') []) in Hlt by discriminate.
+             rewrite (last_cons_nonempty _ f1 st' [] Hst') in Hlt. exact Hlt.
+  Qed.
+
+  Lemma root_tree_of g u :
+    root (tree_of g u) = u.
+  Proof.
+    cbv [tree_of]. Tactics.destruct_one_match.
+    apply dfs_fold_spec in E. fwd. apply tree_of_root_invariant in Ep1.
+    cbv [root_inv] in Ep1. fwd. reflexivity.
+  Qed.
 
   Lemma is_tree_alt_is_tree g root :
     is_tree_alt g root ->
     graph.is_tree g root.
+  Proof.
+    cbv [is_tree_alt graph.is_tree]. intro H. split.
+    - pose proof (all_reachable_graph_of (tree_of g root)) as Har.
+      rewrite (root_tree_of g root) in Har. rewrite H. exact Har.
+    - pose proof (is_tree_graph_of (tree_of g root) (tree_of_valid_tree g root)) as Hcount.
+      rewrite (root_tree_of g root) in Hcount. rewrite H. exact Hcount.
+  Qed.
+
+  Lemma subgraph_eq (g g' : graph) :
+    graph.subgraph g' g ->
+    graph.num_edges g' = graph.num_edges g ->
+    g' = g.
   Proof. Admitted.
+
 End __.

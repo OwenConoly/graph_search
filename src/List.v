@@ -66,6 +66,14 @@ Lemma last_cons_last_cons A (a : A) l d1 d2 :
   last (a :: l) d1 = last (a :: l) d2.
 Proof. do 2 rewrite last_cons. reflexivity. Qed.
 
+Lemma last_cons_nonempty A (a : A) l d :
+  l <> [] ->
+  last (a :: l) d = last l d.
+Proof.
+  intro Hl. rewrite last_cons. destruct l as [|b l']; [ congruence | ].
+  apply last_cons_last_cons.
+Qed.
+
 Lemma In_last A (l : list A) d :
   l <> [] ->
   In (last l d) l.
