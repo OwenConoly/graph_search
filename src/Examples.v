@@ -1,4 +1,4 @@
-From GraphSearch Require Import DFS GraphInterface List.
+From GraphSearch Require Import DFS GraphInterface List Trees.
 From coqutil Require Import Eqb Tactics.fwd Tactics Datatypes.List Datatypes.ListSet.
 From Stdlib Require Import List Lia.
 Import ListNotations.
@@ -38,12 +38,11 @@ Section __.
       + intro. subst. auto.
     - apply set_contains_true in H1. constructor.
       rewrite graph.num_edges_put by assumption. rewrite graph.num_nodes_put00.
-      + assert (graph.num_nodes g root <= S (graph.num_edges g)) by (clear IH0p3; admit).
-        lia.
+      + apply many_edges in IH0p3. lia.
       + apply IH0p0. apply IH0p1. simpl. auto.
       + apply IH0p0. assumption.
     - assumption.
-  Admitted.
+  Qed.
 
   Lemma check_tree_spec g root :
     Reflects (graph.is_locally_tree g root) (check_locally_tree g root).

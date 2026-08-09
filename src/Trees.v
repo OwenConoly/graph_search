@@ -568,6 +568,18 @@ Section __.
     rewrite (Ep1p2 n), (Hvs n). reflexivity.
   Qed.
 
+  Lemma num_nodes_tree_of g root :
+    graph.all_reachable g root ->
+    length (nodes_of (tree_of g root)) = graph.num_nodes g root.
+  Proof.
+    intro Hall. destruct (nodes_of_tree_of g root) as [g' [Hrs Hnodes]].
+    pose proof (graph.reachable_subgraph_all g root g' Hall Hrs) as Hg'. subst g'.
+    unfold graph.num_nodes. apply NoDup_same_length.
+    - exact (tree_of_valid_tree g root).
+    - apply list_union_preserves_NoDup. apply graph.all_nodes_NoDup.
+    - intro n. rewrite Hnodes, In_list_union_spec. cbn [In]. tauto.
+  Qed.
+
   Lemma round_trip g u :
     graph.is_tree g u ->
     graph_of (tree_of g u) = g.
@@ -575,16 +587,9 @@ Section __.
     intro Htree. pose proof Htree as Htree'. cbv [graph.is_tree] in Htree'.
     destruct Htree' as [Hall Hcount].
     apply graph.subgraph_eq; [ apply graph_of_tree_of_subgraph | ].
-    destruct (nodes_of_tree_of g u) as [g' [Hrs Hnodes]].
-    pose proof (graph.reachable_subgraph_all g u g' Hall Hrs) as Hg'. subst g'.
     pose proof (is_tree_graph_of (tree_of g u) (tree_of_valid_tree g u)) as Hcnt.
     rewrite (num_nodes_graph_of _ (tree_of_valid_tree g u)) in Hcnt.
-    assert (Hlen : length (nodes_of (tree_of g u)) = graph.num_nodes g u).
-    { unfold graph.num_nodes. apply NoDup_same_length.
-      - exact (tree_of_valid_tree g u).
-      - apply list_union_preserves_NoDup. apply graph.all_nodes_NoDup.
-      - intro n. rewrite Hnodes, In_list_union_spec. cbn [In]. tauto. }
-    lia.
+    rewrite (num_nodes_tree_of g u Hall) in Hcnt. lia.
   Qed.
 
   Lemma is_tree_is_tree_alt g root :
@@ -595,5 +600,17 @@ Section __.
     - apply tree_of_valid_tree.
     - symmetry. apply round_trip. exact Htree.
     - symmetry. apply root_tree_of.
+  Qed.
+
+  Corollary many_edges g root :
+    graph.all_reachable g root ->
+    graph.num_nodes g root <= S (graph.num_edges g).
+  Proof.
+    intro Hall.
+    pose proof (is_tree_graph_of (tree_of g root) (tree_of_valid_tree g root)) as Hcnt.
+    rewrite (num_nodes_graph_of _ (tree_of_valid_tree g root)) in Hcnt.
+    rewrite (num_nodes_tree_of g root Hall) in Hcnt.
+    pose proof (graph.subgraph_num_edges _ _ (graph_of_tree_of_subgraph g root)) as Hmono.
+    lia.
   Qed.
 End __.

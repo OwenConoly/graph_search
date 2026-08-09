@@ -346,6 +346,15 @@ Section ops.
     exact (Hincl _ He).
   Qed.
 
+  Lemma subgraph_num_edges (g1 g2 : graph) :
+    subgraph g1 g2 ->
+    num_edges g1 <= num_edges g2.
+  Proof.
+    intro Hsub. unfold num_edges. apply NoDup_incl_length.
+    - apply all_edges_NoDup.
+    - intros [a b] Hab. rewrite In_all_edges in Hab |- *. apply Hsub. exact Hab.
+  Qed.
+
   Definition is_tree g root :=
     all_reachable g root /\
       S (num_edges g) = num_nodes g root.
