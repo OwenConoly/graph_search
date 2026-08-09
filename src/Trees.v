@@ -352,8 +352,8 @@ Section __.
     simpl. apply edge_graph_of_forest_cons. auto.
   Qed.
 
-  Definition is_tree_alt g root :=
-    g = graph_of (tree_of g root).
+  Definition is_tree_alt g r :=
+    exists t, valid_tree t /\ g = graph_of t /\ r = root t.
 
   Lemma nodes_of_tree_of g root :
     exists g',
@@ -560,11 +560,9 @@ Section __.
     is_tree_alt g root ->
     graph.is_tree g root.
   Proof.
-    cbv [is_tree_alt graph.is_tree]. intro H. split.
-    - pose proof (all_reachable_graph_of (tree_of g root)) as Har.
-      rewrite (root_tree_of g root) in Har. rewrite H. exact Har.
-    - pose proof (is_tree_graph_of (tree_of g root) (tree_of_valid_tree g root)) as Hcount.
-      rewrite (root_tree_of g root) in Hcount. rewrite H. exact Hcount.
+    cbv [is_tree_alt graph.is_tree]. intros. fwd. split.
+    - apply all_reachable_graph_of.
+    - apply is_tree_graph_of. assumption.
   Qed.
 
   Lemma subgraph_eq (g g' : graph) :
@@ -573,4 +571,15 @@ Section __.
     g' = g.
   Proof. Admitted.
 
+  Lemma round_trip g u :
+    graph_of (tree_of g u) = g.
+  Proof. Admitted.
+
+  Lemma is_tree_is_tree_alt g root :
+    graph.is_tree g root ->
+    is_tree_alt g root.
+  Proof.
+    cbv [graph.is_tree is_tree_alt]. intros. fwd.
+    exists (tree_of g root).
+  Admitted.
 End __.
