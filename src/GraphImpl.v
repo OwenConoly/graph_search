@@ -241,7 +241,7 @@ Section GraphImpl.
       + intros [[t [Ht Hv]] _]. exists t. split; [exact Ht | exact Hv].
   Qed.
 
-  Definition graph_map : graph.graph V :=
+  #[global] Instance graph_map : graph.graph V :=
     {| graph.rep := graph_rep;
        graph.edges := edges;
        graph.empty := empty;
@@ -249,7 +249,7 @@ Section GraphImpl.
        graph.remove := remove;
        graph.sources := sources |}.
 
-  Global Instance graph_map_ok : graph.ok graph_map.
+  #[global] Instance graph_map_ok : graph.ok graph_map.
   Proof.
     split;
       cbv [graph.edge];
