@@ -86,7 +86,7 @@ Module graph.
     Definition reachesb g root v :=
       set_contains (get_reachable_nodes g root) v.
 
-    Lemma reachesb_spec g root v :
+    #[global] Instance reachesb_spec g root v :
       Reflects (graph.reaches g root v) (reachesb g root v).
     Proof.
       cbv [reachesb].
