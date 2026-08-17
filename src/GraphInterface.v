@@ -60,6 +60,19 @@ Section ops.
     - rewrite IH, edge_put. cbn [In]. tauto.
   Qed.
 
+  Definition of_edges (es : list (vertex * vertex)) :=
+    fold_right (fun '(u, v) g => put g u v) empty es.
+
+  Lemma edge_of_edges es u v :
+    edge (of_edges es) u v <-> In (u, v) es.
+  Proof.
+    induction es as [|[a b] es IH]; cbn [of_edges fold_right].
+    - cbn [In]. split; [ apply edge_empty | intros [] ].
+    - rewrite edge_put, IH. cbn [In]. split.
+      + intros [H | [-> ->]]; [ right; exact H | left; reflexivity ].
+      + intros [H | H]; [ inversion H; subst; auto | auto ].
+  Qed.
+
   Lemma edge_union_fold ss g1 g2 u' v' :
     edge (fold_left (fun g u => put_edges g u (edges g2 u)) ss g1) u' v' <->
       edge g1 u' v' \/ In u' ss /\ edge g2 u' v'.
