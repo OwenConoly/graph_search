@@ -1,4 +1,5 @@
 (rocq.theory
 (name GraphSearch)
+(package graph-search)
 (theories Stdlib coqutil)
 (generate_project_file))
