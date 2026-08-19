@@ -25,4 +25,8 @@ An implementation, in terms of coqutil maps, is provided in GraphImpl.v.
 
 ## Building
 
-Do a recursive clone to get the coqutil submodule, and then run `make`.
+* Works with Rocq 9.2.
+* You should do a recursive clone to get the submodule.
+* Run `dune build` to build.
+It should automatically generate a _RocqProject file.
+* `dune clean` also exists.

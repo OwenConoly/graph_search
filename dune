@@ -1,0 +1,7 @@
+(subdir
+ coqutil/src/coqutil
+ (include_subdirs qualified)
+ (rocq.theory
+  (name coqutil)
+  (theories Stdlib Ltac2)
+  (flags :standard -w -all)))

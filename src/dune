@@ -1,0 +1,4 @@
+(rocq.theory
+(name GraphSearch)
+(theories Stdlib coqutil)
+(generate_project_file))
