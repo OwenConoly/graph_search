@@ -580,3 +580,5 @@ Section __.
     lia.
   Qed.
 End __.
+
+Arguments tree : clear implicits.

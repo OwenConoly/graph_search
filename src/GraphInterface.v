@@ -231,6 +231,18 @@ Section ops.
     split; [split; assumption | reflexivity].
   Qed.
 
+  Lemma reaches_trans g a b c :
+    reaches g a b ->
+    reaches g b c ->
+    reaches g a c.
+  Proof.
+    intros [p [Hp Hlast]] Hbc. subst b. revert a Hp Hbc.
+    induction p as [|x p' IH]; intros a Hp Hbc.
+    - assumption.
+    - destruct Hp as [He Hp']. rewrite last_cons in Hbc.
+      eauto using reaches_step_before.
+  Qed.
+
   Lemma path_sink_last g v first p :
     (forall w, ~ edge g v w) ->
     path g first p ->

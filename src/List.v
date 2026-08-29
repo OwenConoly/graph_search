@@ -67,6 +67,14 @@ Proof.
   apply last_cons_last_cons.
 Qed.
 
+Lemma In_last_cons A (l : list A) x d :
+  In (last (x :: l) d) (x :: l).
+Proof.
+  revert x d. induction l as [|y l' IH]; intros x d.
+  - left. reflexivity.
+  - rewrite last_cons. right. apply IH.
+Qed.
+
 Lemma NoDup_same_length {A} (l1 l2 : list A) :
   NoDup l1 ->
   NoDup l2 ->
