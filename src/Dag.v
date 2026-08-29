@@ -1,7 +1,7 @@
 From Stdlib Require Import Lists.List.
 From Stdlib Require Import micromega.Lia.
-From Datalog Require Import Tactics List.
-From coqutil Require Import Tactics Tactics.fwd Datatypes.List.
+From coqutil Require Import Tactics Tactics.fwd Tactics.forward Datatypes.List.
+From GraphSearch Require Import List.
 
 From Stdlib Require Import Relations.Relation_Operators Relations.Operators_Properties Relations.Relations.
 From Stdlib Require Import Wellfounded.Union.
@@ -190,9 +190,9 @@ Lemma irrefl_dag g :
 Proof.
   induction g.
   - intros. apply wf_empty.
-  - intros H. specialize' IHg.
+  - intros H. especialize IHg.
     { intros. eapply H. eapply clos_trans_monotone; [|eassumption].
-      intros. eapply edge_rel_weaken; [eassumption|]. auto with incl. }
+      intros. eapply edge_rel_weaken; [eassumption|]. auto using incl_tl, incl_refl. }
     pose proof IHg as Hwf.
     intros v. specialize (IHg v). induction IHg as [v _ Hv].
     constructor. intros u Hu. cbv [edge_rel] in Hu. simpl in Hu.
@@ -204,7 +204,7 @@ Proof.
     + apply t_step. cbv [edge_rel]. simpl. auto.
     + intros x y H1 H2. cbv [edge_rel] in H1. simpl in H1.
       destruct H1 as [H1|H1].
-      { exfalso. invert H1. eapply H. apply H2. }
+      { exfalso. injection H1 as -> ->. eapply H. apply H2. }
       split.
       -- exact H1.
       -- eapply t_trans. 2: eassumption. apply t_step. cbv [edge_rel]. simpl. auto.
@@ -267,8 +267,8 @@ Proof.
   - cbv [path_alt]. intros. destruct l1; try discriminate H.
     destruct l1; discriminate H.
   - cbv [path_alt]. intros l1 x0 y0 l2 H'. destruct l1 as [|z l1].
-    + simpl in H'. invert_list_stuff. assumption.
-    + simpl in H'. invert_list_stuff. eapply IHpath. eassumption.
+    + simpl in H'. fwd. assumption.
+    + simpl in H'. fwd. eapply IHpath. eassumption.
 Qed.
 
 Lemma path_alt_tl x l g :
@@ -323,7 +323,7 @@ Lemma path_incl x l g :
   path g x l ->
   incl l (map snd g).
 Proof.
-  induction 1; auto with incl. apply incl_cons; auto with incl.
+  induction 1; auto using incl_nil_l. apply incl_cons; auto.
   apply in_map_iff. eexists. split; eauto. reflexivity.
 Qed.
 
@@ -334,6 +334,6 @@ Lemma dag_paths_short x l g :
 Proof.
   intros H1 H2. eapply dags_have_no_cycles in H1; eauto.
   apply path_incl in H2. rewrite <- (length_map snd).
-  invert H1. apply NoDup_incl_length; assumption.
+  inversion_clear H1. apply NoDup_incl_length; assumption.
 Qed.
 End __.

@@ -75,6 +75,11 @@ Proof.
   - rewrite last_cons. right. apply IH.
 Qed.
 
+Lemma in_fst A B (x : A) (y : B) xys :
+  In (x, y) xys ->
+  In x (map fst xys).
+Proof. induction xys; simpl; eauto. destruct 1; subst; eauto. Qed.
+
 Lemma NoDup_same_length {A} (l1 l2 : list A) :
   NoDup l1 ->
   NoDup l2 ->
