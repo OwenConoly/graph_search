@@ -1,4 +1,4 @@
-From GraphSearch Require Import GraphInterface Trees List.
+From GraphSearch Require Import GraphInterface Trees List Dag.
 From coqutil Require Import Eqb Tactics.fwd Tactics Datatypes.List.
 From Stdlib Require Import List.
 Import ListNotations.
@@ -193,5 +193,41 @@ Section __.
     - eapply reachable_subgraph_compose; eassumption.
     - rewrite <- Hroot'. apply is_tree_graph_of. assumption.
   Qed.
+
+  Lemma graph_of_Acc (t : tree V) :
+    valid_tree t ->
+    forall x, Acc (fun a b => graph.edge (graph_of t) b a) x.
+  Proof.
+    induction t as [r ts IH] using tree_ind. intros Hval x.
+    rewrite Forall_forall in IH.
+    assert (Htrans : forall s z,
+               In s ts -> In z (nodes_of s) ->
+               Acc (fun a b => graph.edge (graph_of s) b a) z ->
+               Acc (fun a b => graph.edge (graph_of (tree_cons r ts)) b a) z).
+    { intros s z Hs Hz Hacc.
+      eapply subrel_Acc_strong with (P := fun w => In w (nodes_of s)).
+      - exact Hacc.
+      - exact Hz.
+      - intros a b Hab Hb.
+        assert (Hedge : graph.edge (graph_of s) b a) by (eapply edge_confined; eassumption).
+        split; [ exact Hedge | exact (proj2 (edge_nodes s b a Hedge)) ]. }
+    constructor. intros y Hy. apply edge_graph_of in Hy.
+    destruct Hy as [[_ Hy] | [s [Hs Hxy]]].
+    - apply in_map_iff in Hy. destruct Hy as [s' [Hroot Hs']]. subst y.
+      apply Htrans with (s := s').
+      + exact Hs'.
+      + apply nodes_of_root.
+      + apply IH; [ exact Hs' | eapply valid_tree_child; eassumption ].
+    - pose proof (edge_nodes s x y Hxy) as [_ Hy_in].
+      apply Htrans with (s := s).
+      + exact Hs.
+      + exact Hy_in.
+      + apply IH; [ exact Hs | eapply valid_tree_child; eassumption ].
+  Qed.
+
+  Lemma tree_is_dag (t : tree V) :
+    valid_tree t ->
+    graph.is_dag (graph_of t).
+  Proof. exact (graph_of_Acc t). Qed.
 
 End __.
