@@ -1,6 +1,6 @@
 From GraphSearch Require Import GraphInterface Trees List Dag.
 From coqutil Require Import Eqb Tactics.fwd Tactics Datatypes.List.
-From Stdlib Require Import List.
+From Stdlib Require Import List Relations.Relation_Operators Wellfounded.Transitive_Closure.
 Import ListNotations.
 
 Section __.
@@ -249,5 +249,39 @@ Section __.
     graph.reachable_subgraph g root g' ->
     graph.is_dag g'.
   Proof. intros Hlt Hrs x. eapply is_locally_tree_Acc; eassumption. Qed.
+
+  Lemma reaches_clos_trans (g : graph) a b :
+    graph.reaches g a b ->
+    a = b \/ clos_trans V (fun x y => graph.edge g y x) b a.
+  Proof.
+    intros [p [Hp Hlast]]. subst b. revert a Hp.
+    induction p as [|x p' IH]; intros a Hp.
+    - left. reflexivity.
+    - destruct Hp as [He Hp']. rewrite last_cons. right.
+      destruct (IH x Hp') as [Hx | Hct].
+      + rewrite <- Hx. apply t_step. exact He.
+      + eapply t_trans; [ exact Hct | apply t_step; exact He ].
+  Qed.
+
+  Lemma is_locally_tree_no_return (g : graph) root u w :
+    graph.is_locally_tree g root ->
+    graph.reaches g root u ->
+    graph.edge g u w ->
+    ~ graph.reaches g w u.
+  Proof.
+    intros Hlt Hru Hedge Hwu.
+    pose proof Hlt as Hlt'. destruct Hlt' as [g' [Hrs _]].
+    pose proof (is_locally_tree_is_dag _ _ _ Hlt Hrs) as Hdag.
+    assert (Hedge' : graph.edge g' u w).
+    { apply (proj2 (Hrs u w)). split; [ exact Hedge | exact Hru ]. }
+    assert (Hwu' : graph.reaches g' w u).
+    { eapply reaches_reachable_subgraph;
+        [ exact Hrs | eapply graph.reaches_step; [ exact Hru | exact Hedge ] | exact Hwu ]. }
+    eapply Acc_not_symm with (x := u).
+    - apply Acc_clos_trans. apply Hdag.
+    - destruct (reaches_clos_trans g' w u Hwu') as [Hwu_eq | Hct].
+      + subst w. apply t_step. exact Hedge'.
+      + eapply t_trans; [ exact Hct | apply t_step; exact Hedge' ].
+  Qed.
 
 End __.
