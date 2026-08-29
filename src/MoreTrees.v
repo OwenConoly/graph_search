@@ -230,4 +230,24 @@ Section __.
     graph.is_dag (graph_of t).
   Proof. exact (graph_of_Acc t). Qed.
 
+  Lemma is_locally_tree_Acc (g g' : graph) root x :
+    graph.is_locally_tree g root ->
+    graph.reachable_subgraph g root g' ->
+    Acc (fun a b => graph.edge g' b a) x.
+  Proof.
+    intros [g'' [Hrs'' Hcount]] Hrs.
+    pose proof (graph.reachable_subgraph_unique _ _ _ _ Hrs'' Hrs). subst g''.
+    assert (Htree : graph.is_tree g' root).
+    { split; [ eapply reachable_subgraph_all_reachable; exact Hrs | exact Hcount ]. }
+    apply is_tree_is_tree_alt in Htree.
+    destruct Htree as [t [Hval [Hgt Hroott]]]. subst g'.
+    exact (tree_is_dag t Hval x).
+  Qed.
+
+  Lemma is_locally_tree_is_dag (g g' : graph) root :
+    graph.is_locally_tree g root ->
+    graph.reachable_subgraph g root g' ->
+    graph.is_dag g'.
+  Proof. intros Hlt Hrs x. eapply is_locally_tree_Acc; eassumption. Qed.
+
 End __.
