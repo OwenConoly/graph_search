@@ -243,6 +243,8 @@ Section ops.
       eauto using reaches_step_before.
   Qed.
 
+  Definition is_dag g := well_founded (fun x y => edge g y x).
+
   Lemma path_sink_last g v first p :
     (forall w, ~ edge g v w) ->
     path g first p ->

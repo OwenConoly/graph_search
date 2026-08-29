@@ -1,7 +1,7 @@
 From Stdlib Require Import Lists.List.
 From Stdlib Require Import micromega.Lia.
-From coqutil Require Import Tactics Tactics.fwd Tactics.forward Datatypes.List.
-From GraphSearch Require Import List.
+From coqutil Require Import Tactics Tactics.fwd Tactics.forward Datatypes.List Eqb.
+From GraphSearch Require Import List GraphInterface.
 
 From Stdlib Require Import Relations.Relation_Operators Relations.Operators_Properties Relations.Relations.
 From Stdlib Require Import Wellfounded.Union.
@@ -337,3 +337,18 @@ Proof.
   inversion_clear H1. apply NoDup_incl_length; assumption.
 Qed.
 End __.
+
+Section bridge.
+  Context {V : Type} {eqbV : Eqb V} {eqbV_ok : Eqb_ok eqbV}.
+  Context {graph : graph.graph V} {graph_ok : graph.ok graph}.
+
+  Lemma is_dag_iff_dag_all_edges (g : graph) :
+    graph.is_dag g <-> dag (graph.all_edges g).
+  Proof.
+    unfold graph.is_dag, dag, edge_rel. split; intro Hwf.
+    - eapply wf_incl; [ | exact Hwf ]. intros x y Hin.
+      apply graph.In_all_edges in Hin. exact Hin.
+    - eapply wf_incl; [ | exact Hwf ]. intros x y He.
+      apply graph.In_all_edges. exact He.
+  Qed.
+End bridge.
