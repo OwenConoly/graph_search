@@ -389,6 +389,9 @@ Section ops.
   Definition is_locally_tree g root :=
     exists g', reachable_subgraph g root g' /\ S (num_edges g') = num_nodes g' root.
 
+  Definition is_locally_dag g root :=
+    Acc (fun x y => edge g y x) root.
+
   Lemma num_edges_empty :
     num_edges empty = O.
   Proof. unfold num_edges, all_edges. rewrite sources_empty. reflexivity. Qed.

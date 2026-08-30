@@ -230,25 +230,32 @@ Section __.
     graph.is_dag (graph_of t).
   Proof. exact (graph_of_Acc t). Qed.
 
-  Lemma is_locally_tree_Acc (g g' : graph) root x :
-    graph.is_locally_tree g root ->
+  Lemma is_locally_dag_alt (g g' : graph) root :
     graph.reachable_subgraph g root g' ->
-    Acc (fun a b => graph.edge g' b a) x.
+    graph.is_dag g' ->
+    graph.is_locally_dag g root.
   Proof.
-    intros [g'' [Hrs'' Hcount]] Hrs.
-    pose proof (graph.reachable_subgraph_unique _ _ _ _ Hrs'' Hrs). subst g''.
-    assert (Htree : graph.is_tree g' root).
-    { split; [ eapply reachable_subgraph_all_reachable; exact Hrs | exact Hcount ]. }
-    apply is_tree_is_tree_alt in Htree.
-    destruct Htree as [t [Hval [Hgt Hroott]]]. subst g'.
-    exact (tree_is_dag t Hval x).
+    intros Hrs Hdag.
+    eapply subrel_Acc_strong
+      with (R2 := fun x y => graph.edge g' y x) (P := graph.reaches g root).
+    - apply Hdag.
+    - apply graph.reaches_self.
+    - intros x y Hxy Hy. split.
+      + apply (proj2 (Hrs y x)). split; [ exact Hxy | exact Hy ].
+      + eapply graph.reaches_step; eassumption.
   Qed.
 
-  Lemma is_locally_tree_is_dag (g g' : graph) root :
+  Lemma is_locally_tree_is_locally_dag (g : graph) root :
     graph.is_locally_tree g root ->
-    graph.reachable_subgraph g root g' ->
-    graph.is_dag g'.
-  Proof. intros Hlt Hrs x. eapply is_locally_tree_Acc; eassumption. Qed.
+    graph.is_locally_dag g root.
+  Proof.
+    intros [g' [Hrs Hcount]]. eapply is_locally_dag_alt; [ exact Hrs | ].
+    assert (Htree : graph.is_tree g' root)
+      by (split; [ eapply reachable_subgraph_all_reachable; exact Hrs | exact Hcount ]).
+    apply is_tree_is_tree_alt in Htree.
+    destruct Htree as [t [Hval [Hgt Hroott]]]. subst g'.
+    exact (tree_is_dag t Hval).
+  Qed.
 
   Lemma reaches_clos_trans (g : graph) a b :
     graph.reaches g a b ->
@@ -270,18 +277,13 @@ Section __.
     ~ graph.reaches g w u.
   Proof.
     intros Hlt Hru Hedge Hwu.
-    pose proof Hlt as Hlt'. destruct Hlt' as [g' [Hrs _]].
-    pose proof (is_locally_tree_is_dag _ _ _ Hlt Hrs) as Hdag.
-    assert (Hedge' : graph.edge g' u w).
-    { apply (proj2 (Hrs u w)). split; [ exact Hedge | exact Hru ]. }
-    assert (Hwu' : graph.reaches g' w u).
-    { eapply reaches_reachable_subgraph;
-        [ exact Hrs | eapply graph.reaches_step; [ exact Hru | exact Hedge ] | exact Hwu ]. }
+    pose proof (is_locally_tree_is_locally_dag g u
+                  (is_locally_tree_reaches g root u Hru Hlt)) as Hacc.
     eapply Acc_not_symm with (x := u).
-    - apply Acc_clos_trans. apply Hdag.
-    - destruct (reaches_clos_trans g' w u Hwu') as [Hwu_eq | Hct].
-      + subst w. apply t_step. exact Hedge'.
-      + eapply t_trans; [ exact Hct | apply t_step; exact Hedge' ].
+    - apply Acc_clos_trans. exact Hacc.
+    - destruct (reaches_clos_trans g w u Hwu) as [Hwu_eq | Hct].
+      + subst w. apply t_step. exact Hedge.
+      + eapply t_trans; [ exact Hct | apply t_step; exact Hedge ].
   Qed.
 
 End __.
