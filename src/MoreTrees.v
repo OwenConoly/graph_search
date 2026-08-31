@@ -1,13 +1,12 @@
-From GraphSearch Require Import GraphInterface Trees List Dag.
+From GraphSearch Require Import GraphInterface Trees List Dag Examples.
 From coqutil Require Import Eqb Tactics.fwd Tactics Datatypes.List.
-From Stdlib Require Import List Relations.Relation_Operators Wellfounded.Transitive_Closure.
+From Stdlib Require Import List Sorting.Permutation Morphisms
+  Relations.Relation_Operators Wellfounded.Transitive_Closure.
 Import ListNotations.
 
 Section __.
   Context {V : Type} {eqbV : Eqb V} {eqbV_ok : Eqb_ok eqbV}.
   Context {graph : graph.graph V} {graph_ok : graph.ok graph}.
-
-  (* ---------- reachability and reachable subgraphs ---------- *)
 
   Lemma path_reachable_subgraph (g g' : graph) root u p :
     graph.reachable_subgraph g root g' ->
@@ -67,8 +66,6 @@ Section __.
         * eapply graph.reaches_trans; eassumption.
       + eapply reaches_reachable_subgraph; eassumption.
   Qed.
-
-  (* ---------- confinement of reachability to a subtree ---------- *)
 
   Lemma edge_confined (v : V) ts s a b :
     valid_tree (tree_cons v ts) ->
@@ -173,7 +170,6 @@ Section __.
     eapply path_last_in_nodes; eauto using nodes_of_root.
   Qed.
 
-  (* A connected subgraph of a tree is a tree. *)
   Lemma is_locally_tree_reaches (g : graph) root v :
     graph.reaches g root v ->
     graph.is_locally_tree g root ->
@@ -194,9 +190,9 @@ Section __.
     - rewrite <- Hroot'. apply is_tree_graph_of. assumption.
   Qed.
 
-  Lemma graph_of_Acc (t : tree V) :
+  Lemma tree_is_dag (t : tree V) :
     valid_tree t ->
-    forall x, Acc (fun a b => graph.edge (graph_of t) b a) x.
+    graph.is_dag (graph_of t).
   Proof.
     induction t as [r ts IH] using tree_ind. intros Hval x.
     rewrite Forall_forall in IH.
@@ -224,11 +220,6 @@ Section __.
       + exact Hy_in.
       + apply IH; [ exact Hs | eapply valid_tree_child; eassumption ].
   Qed.
-
-  Lemma tree_is_dag (t : tree V) :
-    valid_tree t ->
-    graph.is_dag (graph_of t).
-  Proof. exact (graph_of_Acc t). Qed.
 
   Lemma is_locally_dag_alt (g g' : graph) root :
     graph.reachable_subgraph g root g' ->
@@ -286,4 +277,126 @@ Section __.
       + eapply t_trans; [ exact Hct | apply t_step; exact Hedge ].
   Qed.
 
+  Lemma reaches_first_step (g : graph) u w :
+    u <> w ->
+    graph.reaches g u w ->
+    exists v, graph.edge g u v /\ graph.reaches g v w.
+  Proof.
+    intros Hne [p [Hp Hlast]]. destruct p as [|x p'].
+    - simpl in Hlast. congruence.
+    - destruct Hp as [He Hp']. exists x. split.
+      + exact He.
+      + exists p'. split; [ exact Hp' | ]. rewrite last_cons in Hlast. exact Hlast.
+  Qed.
+
+  Lemma reaches_child_unique (g : graph) v target v1 v2 :
+    graph.is_locally_tree g v ->
+    graph.edge g v v1 -> graph.reaches g v1 target ->
+    graph.edge g v v2 -> graph.reaches g v2 target ->
+    v1 = v2.
+  Proof.
+    intros [g' [Hrs Hcount]] He1 Hr1 He2 Hr2.
+    assert (Htree : graph.is_tree g' v)
+      by (split; [ eapply reachable_subgraph_all_reachable; exact Hrs | exact Hcount ]).
+    apply is_tree_is_tree_alt in Htree.
+    destruct Htree as [t [Hval [Hgt Hroot]]]. subst g'.
+    assert (Hself : graph.reaches g v v) by apply graph.reaches_self.
+    assert (He1' : graph.edge (graph_of t) v v1)
+      by (apply (proj2 (Hrs v v1)); split; [ exact He1 | exact Hself ]).
+    assert (He2' : graph.edge (graph_of t) v v2)
+      by (apply (proj2 (Hrs v v2)); split; [ exact He2 | exact Hself ]).
+    assert (Hr1' : graph.reaches (graph_of t) v1 target).
+    { eapply reaches_reachable_subgraph;
+        [ exact Hrs
+        | eapply graph.reaches_step; [ apply graph.reaches_self | exact He1 ]
+        | exact Hr1 ]. }
+    assert (Hr2' : graph.reaches (graph_of t) v2 target).
+    { eapply reaches_reachable_subgraph;
+        [ exact Hrs
+        | eapply graph.reaches_step; [ apply graph.reaches_self | exact He2 ]
+        | exact Hr2 ]. }
+    destruct t as [r ts]. cbn [root] in Hroot. subst r.
+    apply edge_graph_of in He1'. apply edge_graph_of in He2'.
+    destruct He1' as [[_ Hin1] | [s [Hs He1s]]].
+    2:{ exfalso. pose proof (edge_nodes s v v1 He1s) as [Hv_in _].
+        apply (root_not_in_children v ts Hval). apply in_flat_map.
+        exists s. split; [ exact Hs | exact Hv_in ]. }
+    destruct He2' as [[_ Hin2] | [s [Hs He2s]]].
+    2:{ exfalso. pose proof (edge_nodes s v v2 He2s) as [Hv_in _].
+        apply (root_not_in_children v ts Hval). apply in_flat_map.
+        exists s. split; [ exact Hs | exact Hv_in ]. }
+    apply in_map_iff in Hin1. destruct Hin1 as [s1 [Hr1eq Hs1]].
+    apply in_map_iff in Hin2. destruct Hin2 as [s2 [Hr2eq Hs2]].
+    subst v1 v2.
+    pose proof (reaches_confined v ts s1 (root s1) target Hval Hs1 (nodes_of_root s1) Hr1')
+      as [_ Ht1].
+    pose proof (reaches_confined v ts s2 (root s2) target Hval Hs2 (nodes_of_root s2) Hr2')
+      as [_ Ht2].
+    assert (s1 = s2) by (eapply disjoint_children; eassumption).
+    subst s2. reflexivity.
+  Qed.
+
+  Context {X : Type}.
+
+  Definition pebble_step (g : graph) (v : V) (ps1 ps2 : list (V * X)) : Prop :=
+    exists rest x,
+      Permutation ps1 ((v, x) :: rest) /\
+      Permutation ps2 (map (fun v' => (v', x)) (graph.edges g v) ++ rest).
+
+  Definition graph_incoming (g : graph) (target : V) (ps : list (V * X)) : list X :=
+    map snd (filter (fun '(v, _) => graph.reachesb g v target) ps).
+
+  #[export] Instance Permutation_graph_incoming (g : graph) (target : V) :
+    Proper (@Permutation _ ==> @Permutation _) (graph_incoming g target).
+  Proof.
+    intros ps ps' Hp. cbv [graph_incoming].
+    apply Permutation_map. apply Permutation_filter. exact Hp.
+  Qed.
+
+  Lemma graph_incoming_app (g : graph) target ps1 ps2 :
+    graph_incoming g target (ps1 ++ ps2)
+    = graph_incoming g target ps1 ++ graph_incoming g target ps2.
+  Proof.
+    cbv [graph_incoming]. rewrite filter_app, map_app. reflexivity.
+  Qed.
+
+  Lemma graph_incoming_cons (g : graph) target v x rest :
+    graph_incoming g target ((v, x) :: rest)
+    = (if graph.reachesb g v target then [x] else []) ++ graph_incoming g target rest.
+  Proof.
+    cbv [graph_incoming]. cbn [filter]. destruct (graph.reachesb g v target); reflexivity.
+  Qed.
+
+  Lemma graph_incoming_map_pair (g : graph) target x l :
+    graph_incoming g target (map (fun v' => (v', x)) l)
+    = map (fun _ => x) (filter (fun v' => graph.reachesb g v' target) l).
+  Proof.
+    induction l as [|v' l' IH]; [ reflexivity | ].
+    cbn [map]. rewrite graph_incoming_cons, IH.
+    cbn [filter]. destruct (graph.reachesb g v' target); reflexivity.
+  Qed.
+
+  Lemma graph_incoming_pebble_step (g : graph) v target ps1 ps2 :
+    graph.is_locally_tree g v ->
+    v <> target ->
+    pebble_step g v ps1 ps2 ->
+    Permutation (graph_incoming g target ps1) (graph_incoming g target ps2).
+  Proof.
+    intros Htree Hne [rest [x [Hp1 Hp2]]].
+    rewrite Hp1, Hp2.
+    rewrite graph_incoming_cons, graph_incoming_app, graph_incoming_map_pair.
+    apply Permutation_app_tail.
+    destr (graph.reachesb g v target).
+    - destruct (reaches_first_step g v target Hne E) as [c [Hedge_c Hreach_c]].
+      erewrite filter_eq_singleton.
+      + simpl. reflexivity.
+      + apply graph.edges_NoDup.
+      + eassumption.
+      + destr (graph.reachesb g c target); [ reflexivity | contradiction ].
+      + intros. fwd. eapply reaches_child_unique; eassumption.
+    - rewrite filter_eq_nil.
+      + simpl. reflexivity.
+      + intros a Ha. destr (graph.reachesb g a target); auto.
+        exfalso. apply E. eapply graph.reaches_step_before; eassumption.
+  Qed.
 End __.

@@ -1,4 +1,4 @@
-From Stdlib Require Import List Lia Permutation.
+From Stdlib Require Import List Lia Permutation Morphisms.
 From coqutil Require Import Datatypes.List Datatypes.ListSet Eqb Tactics.Tactics.
 Import ListNotations.
 
@@ -79,6 +79,46 @@ Lemma in_fst A B (x : A) (y : B) xys :
   In (x, y) xys ->
   In x (map fst xys).
 Proof. induction xys; simpl; eauto. destruct 1; subst; eauto. Qed.
+
+#[export] Instance Permutation_filter {A} (q : A -> bool) :
+  Proper (@Permutation A ==> @Permutation A) (filter q).
+Proof.
+  intros l l' HP. induction HP; cbn [filter].
+  - apply Permutation_refl.
+  - destruct (q x); [ apply perm_skip | ]; assumption.
+  - destruct (q x), (q y); solve [ apply perm_swap | apply Permutation_refl ].
+  - eapply perm_trans; eassumption.
+Qed.
+
+Lemma filter_eq_nil {A} (P : A -> bool) l :
+  (forall a, In a l -> P a = false) ->
+  filter P l = [].
+Proof.
+  induction l as [|a l' IH]; intro H; [ reflexivity | ].
+  cbn [filter]. rewrite (H a (or_introl eq_refl)). apply IH.
+  intros b Hb. apply H. right. exact Hb.
+Qed.
+
+Lemma filter_eq_singleton {A} (P : A -> bool) l a0 :
+  NoDup l ->
+  In a0 l ->
+  P a0 = true ->
+  (forall a, In a l -> P a = true -> a = a0) ->
+  filter P l = [a0].
+Proof.
+  induction l as [|a l' IH]; intros Hnd Hin Ha0 Huniq; [ destruct Hin | ].
+  apply NoDup_cons_iff in Hnd. destruct Hnd as [Hnotin Hnd'].
+  cbn [filter]. destruct (P a) eqn:EPa.
+  - assert (Haa0 : a = a0) by (apply Huniq; [ left; reflexivity | exact EPa ]).
+    rewrite Haa0. f_equal. apply filter_eq_nil. intros b Hb.
+    destruct (P b) eqn:EPb; [ | reflexivity ].
+    assert (Hba0 : b = a0) by (apply Huniq; [ right; exact Hb | exact EPb ]).
+    exfalso. apply Hnotin. rewrite Haa0, <- Hba0. exact Hb.
+  - destruct Hin as [Ha_eq | Hin'].
+    + subst a. rewrite Ha0 in EPa. discriminate.
+    + apply IH; [ exact Hnd' | exact Hin' | exact Ha0 | ].
+      intros b Hb HPb. apply Huniq; [ right; exact Hb | exact HPb ].
+Qed.
 
 Lemma NoDup_same_length {A} (l1 l2 : list A) :
   NoDup l1 ->
