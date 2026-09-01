@@ -30,3 +30,11 @@ An implementation, in terms of coqutil maps, is provided in GraphImpl.v.
 * Run `dune build` to build.
 It should automatically generate a _RocqProject file.
 * `dune clean` also exists.
+
+## Related Work
+
+Unfortunately I didn't read this until after writing the contents of this repository... but seems very neat, similar idea, maybe I could take some ideas from it
+
+https://cambium.inria.fr/~fpottier/publis/fpottier-dfs-scc.pdf
+
+Arguably this repository is a partial solution to item (4) of the future work listed in that paper, although this repository also has some deficiencies compared to the implementation of the paper (incomplete list of such deficiencies: unsuitability for OCaml extraction; only working with a tree rather than a forest).
