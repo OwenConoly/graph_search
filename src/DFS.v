@@ -518,6 +518,7 @@ Section __.
     - fwd. apply H1p1. eauto.
   Qed.
 
+  Create HintDb incl.
   Hint Unfold In : incl.
   Hint Immediate incl_refl : incl.
   Hint Resolve incl_cons incl_tl : incl.

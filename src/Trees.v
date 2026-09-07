@@ -425,7 +425,7 @@ Section __.
     intro Hv. unfold graph.num_edges.
     rewrite <- (length_map snd (graph.all_edges (graph_of t))).
     apply NoDup_same_length.
-    - apply FinFun.Injective_map_NoDup_in; [ | apply graph.all_edges_NoDup ].
+    - apply Finite.Injective_map_NoDup_in; [ | apply graph.all_edges_NoDup ].
       intros [u1 w1] [u2 w2] Hin1 Hin2 Hsnd. cbn in Hsnd. subst w2.
       rewrite graph.In_all_edges in Hin1, Hin2. f_equal.
       eapply unique_parent; eassumption.
