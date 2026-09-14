@@ -3,9 +3,10 @@ From coqutil Require Import Eqb Tactics.fwd Tactics Datatypes.List Datatypes.Lis
 From Stdlib Require Import List Lia.
 Import ListNotations.
 
-Abbreviation Reflects x := (BoolSpec x (~x)).
+(*should not be defined in this random file*)
+#[local] Abbreviation Reflects x := (BoolSpec x (~x)).
 
-Lemma Reflects_iff P Q b :
+#[local] Lemma Reflects_iff P Q b :
   Reflects P b ->
   P <-> Q ->
   Reflects Q b.
