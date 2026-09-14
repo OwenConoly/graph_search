@@ -8,6 +8,10 @@ Lemma same_set_refl A (x : list A) :
   same_set x x.
 Proof. intros a. reflexivity. Qed.
 
+#[export] Instance In_same_set_Proper A :
+  Proper (eq ==> same_set ==> iff) (@In A).
+Proof. intros x y -> l1 l2 Hl. apply Hl. Qed.
+
 Lemma fold_right_inv_NoDup {A B} (P : list B -> A -> Prop) (f : B -> A -> A) l a :
   NoDup l ->
   P [] a ->
