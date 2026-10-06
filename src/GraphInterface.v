@@ -448,3 +448,4 @@ Section ops.
 End ops.
 End graph.
 Global Coercion graph.rep : graph.graph >-> Sortclass.
+Definition graph T {impl : graph.graph T} := @graph.rep T _.

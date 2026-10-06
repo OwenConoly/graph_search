@@ -5,11 +5,8 @@ From GraphSearch Require Import List GraphInterface.
 Import ListNotations.
 
 Section __.
-  Context {V : Type}.
-  Context {eqbV : Eqb V}.
-  Context {graph : graph.graph V}.
-  Context {ok : graph.ok graph}.
-  Context {eqb_ok : Eqb_ok eqbV}.
+  Context {V : Type} {eqbV : Eqb V} {eqb_ok : Eqb_ok eqbV}.
+  Context {graph_V : graph.graph V} {graph_V_ok : graph.ok graph_V}.
 
   Context {state : Type}.
   Context (untree_edge_upd : state -> list V -> V -> state).
@@ -17,8 +14,7 @@ Section __.
   Context (finish : state -> list V -> V -> state).
 
   Section with_graph.
-    Context (g : graph).
-
+    Context (g : graph V).
 
     Definition state' : Type := list V * state.
     Definition untree_edge_upd' '(vs, st) v := (vs, untree_edge_upd st vs v).
@@ -39,7 +35,7 @@ Section __.
     Definition dfs_fold st0 := dfs_fold' (3 + length (graph.sources g)) ([], st0).
   End with_graph.
 
-  Inductive dfs_fold_state (root : V) vs0 st0 : list V (*seen*) -> state -> list V (*current path*)-> graph (*explored edges*) -> Prop :=
+  Inductive dfs_fold_state (root : V) vs0 st0 : list V (*seen*) -> state -> list V (*current path*)-> graph V (*explored edges*) -> Prop :=
   | dfs_init : dfs_fold_state _ _ _ vs0 st0 [root] graph.empty
   | dfs_tree_edge vs st u p g v :
     ~graph.edge g u v ->
@@ -174,7 +170,7 @@ Section __.
     - eapply dfs_finish. eassumption.
   Qed.
 
-  Definition graph_corresp vs vs' (g g_acc : graph) :=
+  Definition graph_corresp vs vs' (g g_acc : graph V) :=
     (forall s, In s (graph.sources g_acc) -> In s vs'/\  ~In s vs) /\
       (forall u v,
           graph.edge g u v ->
@@ -182,7 +178,6 @@ Section __.
           ~ In u vs ->
           graph.edge g_acc u v) /\
       (forall u v, graph.edge g_acc u v -> graph.edge g u v).
-
 
   Lemma graph_corresp_eq vs g g_acc :
     graph_corresp [] vs g g_acc ->
@@ -195,7 +190,7 @@ Section __.
     - intros. fwd. auto.
   Qed.
 
-  Definition weak_graph_corresp root root_edges vs vs' (g g_acc : graph) :=
+  Definition weak_graph_corresp root root_edges vs vs' (g g_acc : graph V) :=
     (forall s, In s (graph.sources g_acc) -> In s vs'/\  ~In s vs) /\
       (forall u v,
           graph.edge g u v ->
@@ -206,7 +201,7 @@ Section __.
       (forall v, graph.edge g_acc root v <-> In v root_edges) /\
       (forall u v, graph.edge g_acc u v -> graph.edge g u v).
 
-  Definition no_long_paths (g : graph) root vs n :=
+  Definition no_long_paths (g : graph V) root vs n :=
     forall p,
       graph.path g root p ->
       NoDup (root :: p) ->
